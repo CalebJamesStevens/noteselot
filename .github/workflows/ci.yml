@@ -1,0 +1,41 @@
+name: Build and test
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 8 * * 1"
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-bookworm
+        env:
+          POSTGRES_USER: noteselot
+          POSTGRES_PASSWORD: test-only-password
+          POSTGRES_DB: noteselot_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U noteselot -d noteselot_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.22.1"
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+        env:
+          TEST_DATABASE_URL: postgres://noteselot:test-only-password@localhost:5432/noteselot_test
+      - run: npm audit --audit-level=low
+      - run: docker compose config --quiet
+        env:
+          POSTGRES_PASSWORD: test-only-password
+      - run: docker build -t noteselot:ci .
