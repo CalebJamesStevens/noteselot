@@ -133,8 +133,10 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
     const before = zoomRef.current, next = clampZoom(nextValue);
     if (before === next) return;
     const anchor = point || {x: area.clientWidth/2, y: area.clientHeight/2};
+    // Successive wheel events can arrive before React paints the previous zoom.
+    // Anchor against the pending position instead of stale DOM scroll values.
     pendingScrollRef.current = anchoredScroll(before,next,
-      {left:area.scrollLeft,top:area.scrollTop},anchor);
+      pendingScrollRef.current || {left:area.scrollLeft,top:area.scrollTop},anchor);
     zoomRef.current = next;
     setZoom(next);
   }
