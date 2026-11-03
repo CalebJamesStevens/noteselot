@@ -12,6 +12,10 @@ function plainText(document) {
   return [
     collect(fragment),
     document.getText("diagram").toString(),
+    ...Array.from(document.getMap("erd-tables").values()).flatMap((table) => {
+      const cols = table.get("columns");
+      return [String(table.get("name") || ""), ...((cols?.toArray() || []).map((col) => String(col.get("name") || "")))];
+    }),
     ...Array.from(document.getMap("shapes").values()).map((s) => s.text || ""),
   ]
     .join(" ")
