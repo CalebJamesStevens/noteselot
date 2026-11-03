@@ -88,7 +88,7 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
   function pickLine(id:string) { setSelectedLine(id); setSelected(null); deselectRelational(); }
   function add(kind:Kind) {
     const id=createId(), value=new Y.Map<unknown>(), title=new Y.Text(), body=new Y.Text(), path=new Y.Text();
-    title.insert(0, {note:"Note",api:"API endpoint",boundary:"Boundary",control:"Control",entity:"Entity"}[kind]);
+    title.insert(0, {note:"Note",api:"API endpoint",boundary:"Boundary",control:"Control",entity:"Entity",image:"Picture"}[kind]);
     if(kind==="api") path.insert(0,"/api/example");
     value.set("kind",kind); value.set("title",title); value.set("body",body);
     value.set("path",path); value.set("method","GET");
