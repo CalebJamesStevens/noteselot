@@ -2257,3 +2257,54 @@ form {
     min-height: 44px;
   }
 }
+
+
+/* Collaborative database design */
+.erd-planner { display: flex; flex-direction: column; min-height: 680px; height: min(78vh, 980px); background: var(--bg); }
+.erd-toolbar { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; padding: 12px 17px; border-block: 1px solid var(--line); background: var(--sidebar); }
+.erd-toolbar > span { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; margin-right: auto; font-size: 12px; }
+.erd-toolbar button, .erd-inspector button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 10px; border-radius: 7px; border: 1px solid var(--line); color: var(--text); background: var(--sidebar); cursor: pointer; font-size: 12px; }
+.erd-toolbar button:hover, .erd-inspector button:hover { border-color: var(--accent); }
+.erd-feedback { margin: 0; padding: 8px 17px; background: var(--sidebar); color: var(--accent); font-size: 12px; }
+.erd-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; flex: 1; min-height: 0; }
+.erd-scroll { overflow: auto; min-width: 0; background-image: radial-gradient(var(--line) 1px, transparent 1px); background-size: 22px 22px; }
+.erd-stage { width: 1600px; height: 1050px; position: relative; }
+.erd-lines { position: absolute; inset: 0; color: var(--accent); overflow: visible; }
+.erd-line { cursor: pointer; }
+.erd-line.selected { color: var(--text); }
+.erd-table { position: absolute; width: 236px; border: 1px solid var(--line); border-radius: 9px; background: var(--sidebar); overflow: hidden; box-shadow: var(--shadow); cursor: pointer; }
+.erd-table.selected { outline: 2px solid var(--accent); outline-offset: 1px; }
+.erd-table > header { display: flex; align-items: center; gap: 8px; background: var(--accent); color: white; min-height: 34px; padding: 7px 10px; cursor: grab; touch-action: none; user-select: none; }
+.erd-table > header:active { cursor: grabbing; }
+.erd-table > header strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
+.erd-table-column { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 5px; min-height: 29px; align-items: center; padding: 5px 8px; border-bottom: 1px solid var(--line); font-size: 11px; }
+.erd-table-column:last-child { border-bottom: 0; }
+.erd-table-column span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.erd-table-column small { font-size: 9px; color: var(--muted); }
+.erd-key { color: var(--accent); font-size: 9px; font-weight: 800; }
+.erd-empty { position: absolute; top: 110px; left: 90px; color: var(--muted); font-size: 14px; }
+.erd-inspector { border-left: 1px solid var(--line); padding: 18px 15px; overflow: auto; background: var(--sidebar); }
+.erd-inspector h3 { font-size: 15px; margin: 0 0 16px; }
+.erd-inspector h4 { font-size: 12px; margin: 14px 0 8px; }
+.erd-inspector p { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.erd-inspector > label, .erd-relation-group > label { display: flex; flex-direction: column; gap: 5px; margin: 8px 0 14px; font-size: 11px; font-weight: 600; }
+.erd-inspector input:not([type="checkbox"]), .erd-inspector select { border: 1px solid var(--line); background: var(--bg); color: var(--text); padding: 8px; width: 100%; border-radius: 6px; min-width: 0; }
+.erd-inspector-heading, .erd-field-row { display: flex; align-items: center; justify-content: space-between; gap: 7px; }
+.erd-inspector-heading h4 { margin: 0; }
+.erd-column-form { margin: 10px 0; border: 1px solid var(--line); border-radius: 7px; padding: 8px; }
+.erd-column-form select { margin: 7px 0; }
+.erd-column-form .erd-field-row label { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; }
+.erd-column-form .erd-field-row label input { width: auto; }
+.erd-inspector .erd-danger { color: #df7070; margin-top: 15px; }
+.erd-inspector .erd-link-choice { display: flex; width: 100%; text-align: left; justify-content: flex-start; margin: 7px 0; }
+.erd-relation-group { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.erd-hint { font-size: 10px !important; }
+@media (max-width: 1000px) {
+  .erd-layout { grid-template-columns: minmax(0, 1fr) 240px; }
+}
+@media (max-width: 760px) {
+  .erd-planner { height: auto; min-height: 800px; }
+  .erd-layout { display: flex; flex-direction: column; }
+  .erd-scroll { height: 470px; flex: none; }
+  .erd-inspector { border-left: 0; border-top: 1px solid var(--line); max-height: 410px; }
+}
