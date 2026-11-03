@@ -8,6 +8,7 @@ import {
   CirclePlus,
   FileText,
   GitBranch,
+  Database,
   Home,
   LockKeyhole,
   LogOut,
@@ -30,7 +31,7 @@ import FeatherIcon from "./components/FeatherIcon";
 import Auth from "./components/Auth";
 import Workspace from "./components/Workspace";
 import { Avatar, Logo, Modal } from "./components/ui";
-const kinds = { note: FileText, board: StickyNote, diagram: GitBranch };
+const kinds = { note: FileText, board: StickyNote, diagram: GitBranch, erd: Database };
 export default function App() {
   const [user, setUser] = useState<User | null>(null),
     [loading, setLoading] = useState(true),
@@ -154,7 +155,9 @@ export default function App() {
                   ? "Untitled whiteboard"
                   : kind === "diagram"
                     ? "Untitled diagram"
-                    : "Untitled",
+                    : kind === "erd"
+                      ? "Untitled database design"
+                      : "Untitled",
       });
       await refresh();
       setSelected(note.id);
@@ -432,6 +435,12 @@ export default function App() {
                   title: "Diagram",
                   text: "Flowcharts, sequences, and mind maps.",
                   Icon: GitBranch,
+                },
+                {
+                  kind: "erd",
+                  title: "Database design",
+                  text: "Plan tables, columns, and crow’s-foot relationships.",
+                  Icon: Database,
                 },
               ] as const
             ).map((t) => (
