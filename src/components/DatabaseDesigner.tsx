@@ -4,32 +4,23 @@ import { Database, Download, Link2, Plus, Trash2 } from "lucide-react";
 import { createId } from "../id";
 import { download } from "../api";
 
-type Cardinality = "one" | "zero-one" | "many" | "zero-many";
-type Column = { id: string; name: string; type: string; primary: boolean; nullable: boolean };
-type Table = { id: string; name: string; x: number; y: number; columns: Column[] };
-type Relation = {
-  id: string;
-  fromTable: string;
-  fromColumn: string;
-  toTable: string;
-  toColumn: string;
-  fromCard: Cardinality;
-  toCard: Cardinality;
-};
+import { 
+  dataTypes, db2iFieldPresets, defaultColumnType, generateSQL,
+  type Dialect, type Cardinality, type Column, type Table, type Relation,
+} from "../erd/dialects";
+
 type MapValue = Y.Map<unknown>;
-const types = ["uuid", "text", "varchar(255)", "integer", "bigint", "boolean", "date", "timestamp", "timestamptz", "numeric(12,2)", "jsonb"];
 const cards: { value: Cardinality; label: string }[] = [
   { value: "one", label: "Exactly one (1)" },
   { value: "zero-one", label: "Zero or one (0..1)" },
   { value: "many", label: "One or many (1..N)" },
   { value: "zero-many", label: "Zero or many (0..N)" },
 ];
-
-function newColumn(name = "id", primary = false): MapValue {
+function newColumn(dialect: Dialect, name = "id", primary = false, type = defaultColumnType(dialect, primary)): MapValue {
   const value = new Y.Map<unknown>();
   value.set("id", createId());
   value.set("name", name);
-  value.set("type", primary ? "uuid" : "text");
+  value.set("type", type);
   value.set("primary", primary);
   value.set("nullable", !primary);
   return value;
@@ -41,6 +32,8 @@ function columnState(c: MapValue): Column {
     type: String(c.get("type") ?? "text"),
     primary: !!c.get("primary"),
     nullable: !!c.get("nullable"),
+    systemName: String(c.get("systemName") ?? ""),
+    ccsid: typeof c.get("ccsid") === "number" ? Number(c.get("ccsid")) : undefined,
   };
 }
 function tableState(id: string, value: MapValue): Table {
@@ -51,6 +44,7 @@ function tableState(id: string, value: MapValue): Table {
     x: Number(value.get("x") ?? 120),
     y: Number(value.get("y") ?? 120),
     columns: columns ? columns.toArray().map(columnState) : [],
+    systemName: String(value.get("systemName") ?? ""),
   };
 }
 function relationState(id: string, value: MapValue): Relation {
@@ -63,31 +57,6 @@ function relationState(id: string, value: MapValue): Relation {
     fromCard: (value.get("fromCard") as Cardinality) || "one",
     toCard: (value.get("toCard") as Cardinality) || "zero-many",
   };
-}
-function quote(name: string) {
-  return '"' + name.replace(/"/g, '""') + '"';
-}
-export function generateSQL(tables: Table[], relations: Relation[]): string {
-  const statements: string[] = ["-- Noteselot database design (PostgreSQL)", "-- Review the schema before executing it."];
-  for (const table of tables) {
-    const definitions = table.columns.map((col) => {
-      const type = types.includes(col.type) ? col.type : "text";
-      return "  " + quote(col.name) + " " + type + (col.primary ? " PRIMARY KEY" : col.nullable ? "" : " NOT NULL");
-    });
-    statements.push("CREATE TABLE " + quote(table.name) + " (\n" + definitions.join(",\n") + "\n);");
-  }
-  for (const r of relations) {
-    const parent = tables.find((t) => t.id === r.fromTable);
-    const child = tables.find((t) => t.id === r.toTable);
-    const parentColumn = parent?.columns.find((c) => c.id === r.fromColumn);
-    const childColumn = child?.columns.find((c) => c.id === r.toColumn);
-    if (!parent || !child || !parentColumn || !childColumn) continue;
-    statements.push(
-      "ALTER TABLE " + quote(child.name) + " ADD FOREIGN KEY (" + quote(childColumn.name) +
-      ") REFERENCES " + quote(parent.name) + " (" + quote(parentColumn.name) + ");",
-    );
-  }
-  return statements.join("\n\n") + "\n";
 }
 function endpoint(table: Table, columnId: string, right: boolean) {
   const index = Math.max(0, table.columns.findIndex((c) => c.id === columnId));
@@ -120,9 +89,12 @@ function CardinalityMark({ x, y, dir, kind }: { x: number; y: number; dir: numbe
 export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: string }) {
   const tableStore = useMemo(() => doc.getMap<MapValue>("erd-tables"), [doc]);
   const relationStore = useMemo(() => doc.getMap<MapValue>("erd-relations"), [doc]);
+  const settings = useMemo(() => doc.getMap<unknown>("erd-settings"), [doc]);
   const snapshot = () => ({
     tables: Array.from(tableStore.entries()).map(([id, value]) => tableState(id, value)),
     relations: Array.from(relationStore.entries()).map(([id, value]) => relationState(id, value)),
+    dialect: settings.get("dialect") === "db2i" ? "db2i" as Dialect : "postgres" as Dialect,
+    schema: String(settings.get("schema") ?? ""),
   });
   const [model, setModel] = useState(snapshot);
   const [selected, setSelected] = useState<string | null>(null);
@@ -133,11 +105,14 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
     const update = () => setModel(snapshot());
     tableStore.observeDeep(update);
     relationStore.observeDeep(update);
+    settings.observeDeep(update);
     return () => {
       tableStore.unobserveDeep(update);
       relationStore.unobserveDeep(update);
+      settings.unobserveDeep(update);
     };
-  }, [tableStore, relationStore]);
+  }, [tableStore, relationStore, settings]);
+  const dialect = model.dialect;
   const active = model.tables.find((t) => t.id === selected);
   const link = model.relations.find((r) => r.id === selectedRelation);
   const getTable = (id: string) => tableStore.get(id);
@@ -146,8 +121,8 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
     const id = createId();
     const table = new Y.Map<unknown>();
     const columns = new Y.Array<MapValue>();
-    columns.push([newColumn("id", true)]);
-    table.set("name", "new_table_" + (model.tables.length + 1));
+    columns.push([newColumn(dialect, dialect === "db2i" ? "ID" : "id", true)]);
+    table.set("name", dialect === "db2i" ? "TABLE" + (model.tables.length + 1) : "new_table_" + (model.tables.length + 1));
     table.set("x", 100 + (model.tables.length % 4) * 280);
     table.set("y", 100 + Math.floor(model.tables.length / 4) * 280);
     table.set("columns", columns);
@@ -157,14 +132,23 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
   }
   function addColumn(id: string) {
     const columns = getTable(id)?.get("columns") as Y.Array<MapValue> | undefined;
-    if (columns) columns.push([newColumn("column_" + (columns.length + 1))]);
+    if (columns) columns.push([newColumn(dialect, (dialect === "db2i" ? "COL" : "column_") + (columns.length + 1))]);
+  }
+  function addDb2Preset(tableId: string, name: string, type: string) {
+    const columns = getTable(tableId)?.get("columns") as Y.Array<MapValue> | undefined;
+    if (!columns) return;
+    const names = new Set(columns.toArray().map((c) => String(c.get("name")).toUpperCase()));
+    let next = name;
+    for (let i = 2; names.has(next.toUpperCase()); i++) next = name + "_" + i;
+    columns.push([newColumn("db2i", next.toUpperCase(), false, type)]);
   }
   function editColumn(tableId: string, columnId: string, key: keyof Column, value: unknown) {
     const columns = getTable(tableId)?.get("columns") as Y.Array<MapValue> | undefined;
     const column = columns?.toArray().find((c) => c.get("id") === columnId);
     if (!column) return;
     doc.transact(() => {
-      column.set(key, value);
+      if (key === "ccsid" && value === undefined) column.delete(key);
+      else column.set(key, value);
       if (key === "primary" && value === true) column.set("nullable", false);
     });
   }
@@ -219,17 +203,36 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
     });
   }
   function exportJSON() {
-    download(title + ".erd.json", JSON.stringify({ version: 1, ...model }, null, 2), "application/json");
+    download(title + ".erd.json", JSON.stringify({ version: 2, ...model }, null, 2), "application/json");
+  }
+  function exportDDL() {
+    try {
+      download(title + (dialect === "db2i" ? ".db2i.sql" : ".postgres.sql"),
+        generateSQL(model.tables, model.relations, { dialect, schema: model.schema }), "text/plain");
+      setFeedback("");
+    } catch (error) {
+      setFeedback("SQL export blocked: " + (error as Error).message);
+    }
   }
   return (
     <div className="erd-planner">
       <div className="erd-toolbar">
         <span><Database size={17} /> Database design</span>
+        <label className="erd-dialect-control">SQL target
+          <select aria-label="Database SQL dialect" value={dialect} onChange={(e) => {
+            const next = e.target.value as Dialect;
+            settings.set("dialect", next);
+            setFeedback(next === "db2i" ? "IBM i Db2 enabled. Review any existing PostgreSQL-specific column types before SQL export." : "");
+          }}>
+            <option value="postgres">PostgreSQL</option>
+            <option value="db2i">IBM i Db2</option>
+          </select>
+        </label>
         <button onClick={addTable}><Plus size={15} /> Table</button>
         <button onClick={addRelation}><Link2 size={15} /> Relationship</button>
         <button onClick={exportJSON}><Download size={15} /> JSON</button>
-        <button onClick={() => download(title + ".sql", generateSQL(model.tables, model.relations), "text/plain")}>
-          <Download size={15} /> PostgreSQL SQL
+        <button onClick={exportDDL}>
+          <Download size={15} /> {dialect === "db2i" ? "IBM i Db2 SQL" : "PostgreSQL SQL"}
         </button>
       </div>
       {feedback && <p className="erd-feedback" role="status">{feedback}</p>}
@@ -290,14 +293,45 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
           </div>
         </div>
         <aside className="erd-inspector">
+          {dialect === "db2i" && (
+            <section className="erd-db2-settings">
+              <h3>IBM i Db2 helpers</h3>
+              <label>Library / SQL schema
+                <input aria-label="IBM i library" placeholder="e.g. WEBTEST" value={model.schema}
+                  maxLength={10} onChange={(e) => settings.set("schema", e.target.value.toUpperCase())} />
+              </label>
+              <p className="erd-hint">Optional library qualifier. Exports SQL naming (SCHEMA.TABLE), not DDS source or physical/logical file recovery.</p>
+            </section>
+          )}
           {active ? (
             <>
               <h3>Table properties</h3>
               <label>Table name<input value={active.name} maxLength={80} onChange={(e) => getTable(active.id)?.set("name", e.target.value)} /></label>
+              {dialect === "db2i" && (
+                <label>Optional system file name (10 chars)
+                  <input aria-label="IBM i system file name" maxLength={10} placeholder="e.g. CUSTMASTER"
+                    value={active.systemName || ""} onChange={(e) => getTable(active.id)?.set("systemName", e.target.value.toUpperCase())} />
+                  <small>Only use when the SQL table name is longer than 10 characters or otherwise not a valid system name.</small>
+                </label>
+              )}
               <div className="erd-inspector-heading">
                 <h4>Columns</h4>
                 <button onClick={() => addColumn(active.id)}><Plus size={15} /> Add</button>
               </div>
+              {dialect === "db2i" && (
+                <label>Quick add IBM i field
+                  <select aria-label="IBM i field preset" value="" onChange={(e) => {
+                    const preset = db2iFieldPresets.find((p) => p.type === e.target.value);
+                    if (preset) addDb2Preset(active.id, preset.name, preset.type);
+                  }}>
+                    <option value="">Choose field template...</option>
+                    {db2iFieldPresets.map((preset) => (
+                      <option key={preset.type} value={preset.type}>{preset.label}</option>
+                    ))}
+                  </select>
+                  <small>DECIMAL = DDS packed (P), NUMERIC = DDS zoned (S). Types remain editable.</small>
+                </label>
+              )}
               {active.columns.map((col) => (
                 <div className="erd-column-form" key={col.id}>
                   <div className="erd-field-row">
@@ -306,10 +340,28 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
                     <button aria-label={"Remove column " + col.name} title="Remove column"
                       onClick={() => removeColumn(active.id, col.id)}><Trash2 size={14} /></button>
                   </div>
-                  <select aria-label={"Type for " + col.name} value={col.type}
-                    onChange={(e) => editColumn(active.id, col.id, "type", e.target.value)}>
-                    {types.map((type) => <option key={type}>{type}</option>)}
-                  </select>
+                  <input aria-label={"Type for " + col.name} list="erd-sql-type-options" spellCheck={false}
+                    value={col.type} onChange={(e) => editColumn(active.id, col.id, "type", e.target.value)} />
+                  {dialect === "db2i" && (
+                    <>
+                      <label>System column name (optional)
+                        <input aria-label={"System column name for " + col.name} maxLength={10}
+                          placeholder="e.g. CUSTNO" value={col.systemName || ""}
+                          onChange={(e) => editColumn(active.id, col.id, "systemName", e.target.value.toUpperCase())} />
+                      </label>
+                      <label>CCSID override
+                        <select aria-label={"CCSID for " + col.name} value={col.ccsid ?? ""}
+                          onChange={(e) => editColumn(active.id, col.id, "ccsid",
+                            e.target.value ? Number(e.target.value) : undefined)}>
+                          <option value="">Inherit table/job default</option>
+                          <option value="37">37 (US EBCDIC)</option>
+                          <option value="500">500 (international EBCDIC)</option>
+                          <option value="1208">1208 (UTF-8)</option>
+                          <option value="65535">65535 (binary/no translation)</option>
+                        </select>
+                      </label>
+                    </>
+                  )}
                   <div className="erd-field-row">
                     <label><input type="checkbox" checked={col.primary}
                       onChange={(e) => editColumn(active.id, col.id, "primary", e.target.checked)} /> Primary key</label>
@@ -377,6 +429,9 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
           )}
         </aside>
       </div>
+      <datalist id="erd-sql-type-options">
+        {dataTypes[dialect].map((type) => <option key={type} value={type} />)}
+      </datalist>
     </div>
   );
 }
