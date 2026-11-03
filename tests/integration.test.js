@@ -439,3 +439,46 @@ test("templates are initialized once on the server and whiteboard changes persis
   );
   persisted.destroy();
 });
+
+
+test("native ERD plans synchronize between coworkers and persist in PostgreSQL", async () => {
+  const alice = await register("SchemaOwner"), bob = await register("SchemaPeer");
+  const team = await request("/teams", { name: "Database planning" }, alice.cookie);
+  assert.equal((await request("/teams/" + team.data.id + "/members", { email: bob.data.email }, alice.cookie)).status, 200);
+  const result = await request("/notes", { title: "Customer database", kind: "erd", team_id: team.data.id }, alice.cookie);
+  assert.equal(result.status, 201);
+  const id = result.data.id;
+  const a = connect(id, alice.cookie), b = connect(id, bob.cookie);
+  await waitFor(() => a.provider.isSynced && b.provider.isSynced);
+  const table = new Y.Map();
+  table.set("name", "customers");
+  table.set("x", 120);
+  table.set("y", 120);
+  const columns = new Y.Array();
+  const col = new Y.Map();
+  col.set("id", "column-a");
+  col.set("name", "id");
+  col.set("type", "uuid");
+  col.set("primary", true);
+  col.set("nullable", false);
+  columns.push([col]);
+  table.set("columns", columns);
+  a.doc.getMap("erd-tables").set("table-a", table);
+  await waitFor(() => b.doc.getMap("erd-tables").get("table-a")?.get("name") === "customers");
+  const peerTable = b.doc.getMap("erd-tables").get("table-a");
+  peerTable.set("name", "client_accounts");
+  await waitFor(() => a.doc.getMap("erd-tables").get("table-a")?.get("name") === "client_accounts");
+  await waitFor(async () => {
+    const { rows } = await sql.query("SELECT state, search_text FROM notes WHERE id=$1", [id]);
+    if (!rows[0]?.state) return false;
+    const restored = new Y.Doc();
+    Y.applyUpdate(restored, rows[0].state);
+    const correct = restored.getMap("erd-tables").get("table-a")?.get("name") === "client_accounts"
+      && rows[0].search_text.includes("client_accounts");
+    restored.destroy();
+    return correct;
+  });
+  assert.equal((await request("/notes/" + id + "/comments", undefined, bob.cookie)).status, 200);
+  const outsider = await register("SchemaOutsider");
+  assert.equal((await request("/notes/" + id + "/comments", undefined, outsider.cookie)).status, 404);
+});
