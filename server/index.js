@@ -239,7 +239,7 @@ app.post("/api/notes", async (req, res) => {
   const input = z
     .object({
       title: title.default("Untitled"),
-      kind: z.enum(["note", "board", "diagram"]).default("note"),
+      kind: z.enum(["note", "board", "diagram", "erd"]).default("note"),
       template: z
         .enum(["blank", "meeting", "ideas", "project"])
         .default("blank"),
