@@ -2308,3 +2308,16 @@ form {
   .erd-scroll { height: 470px; flex: none; }
   .erd-inspector { border-left: 0; border-top: 1px solid var(--line); max-height: 410px; }
 }
+
+
+/* Optional IBM i Db2 design controls */
+.erd-dialect-control { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600; }
+.erd-dialect-control select { min-width: 128px; padding: 7px; border: 1px solid var(--line); border-radius: 7px; color: var(--text); background: var(--bg); }
+.erd-db2-settings { border-bottom: 1px solid var(--line); margin: 0 0 18px; padding-bottom: 12px; }
+.erd-inspector label small { display: block; margin-top: 4px; font-size: 10px; line-height: 1.5; font-weight: 400; color: var(--muted); }
+.erd-column-form > label { display: flex; flex-direction: column; margin: 7px 0; gap: 4px; font-size: 10px; }
+.erd-db2-settings > label { display: flex; flex-direction: column; gap: 5px; font-size: 11px; font-weight: 600; }
+@media (max-width: 760px) {
+  .erd-dialect-control { order: 2; width: 100%; justify-content: space-between; }
+  .erd-dialect-control select { flex: 1; max-width: 220px; }
+}
