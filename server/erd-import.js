@@ -23,12 +23,13 @@ const relationship = z.object({
   fromCard: cardinality, toCard: cardinality,
 }).strip();
 const annotation = z.object({
-  id: identifier, kind: z.enum(["note", "api", "boundary", "control", "entity"]),
+  id: identifier, kind: z.enum(["note", "api", "boundary", "control", "entity", "image"]),
   x: coordinate, y: coordinate,
   w: z.number().finite().min(40).max(2000),
   h: z.number().finite().min(30).max(2000),
   title: text, body: text, method: z.enum(["GET","POST","PUT","PATCH","DELETE","HEAD","OPTIONS"]).default("GET"),
   path: z.string().max(240).default(""),
+  imageData: z.string().max(220000).optional(),
 }).strip();
 const link = z.object({
   id: identifier, from: identifier, to: identifier, label: z.string().max(120),
@@ -45,6 +46,25 @@ const designSchema = z.object({
   architectureConnections: z.array(link).max(1000).default([]),
 }).strip();
 
+/** Allow only bounded, actual raster images. Data URLs cannot fetch remote resources or contain SVG. */
+export function validateEmbeddedImageData(uri) {
+  if (typeof uri !== "string" || !uri.length)
+    throw new Error("Unsupported embedded picture. A PNG, JPEG, or WebP image is required.");
+  if (uri.length > 220000)
+    throw new Error("Embedded pictures must be smaller than 220 KB of encoded image data.");
+  const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(uri);
+  if (!match) throw new Error("Unsupported embedded picture. Use base64 PNG, JPEG, or WebP.");
+  const bytes = Buffer.from(match[2], "base64");
+  if (!bytes.length || bytes.length > 165000)
+    throw new Error("Embedded picture is empty or too large.");
+  const png = match[1] === "png" && bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+  const jpeg = match[1] === "jpeg" && bytes.length >= 4 && bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
+  const webp = match[1] === "webp" && bytes.length >= 12 &&
+    bytes.toString("ascii",0,4) === "RIFF" && bytes.toString("ascii",8,12) === "WEBP";
+  if (!png && !jpeg && !webp) throw new Error("The embedded picture does not match its declared raster format.");
+  return uri;
+}
+
 function ensureUnique(ids, label) {
   if (ids.length !== new Set(ids).size) throw new Error("Duplicate " + label + " identifiers in file.");
 }
@@ -58,6 +78,13 @@ export function validateDesign(input) {
   ensureUnique(design.architectureConnections.map(l => l.id), "connector");
   const tables = new Map(design.tables.map(t => [t.id, new Map(t.columns.map(c => [c.id, c]))]));
   for (const table of design.tables) ensureUnique(table.columns.map(c => c.id), "column in " + table.name);
+  const images = design.annotations.filter(n => n.kind === "image");
+  if (images.length > 8 || images.reduce((total,n) => total+(n.imageData?.length ?? 0),0) > 600000)
+    throw new Error("The diagram exceeds its embedded picture storage limit (8 images / 600 KB).");
+  for (const ann of design.annotations) {
+    if (ann.kind === "image") validateEmbeddedImageData(ann.imageData);
+    else if (ann.imageData !== undefined) throw new Error("Only picture elements may carry embedded image data.");
+  }
   const nodes = new Set([...design.tables.map(t => t.id), ...design.annotations.map(n => n.id)]);
   if (nodes.size !== design.tables.length + design.annotations.length)
     throw new Error("Diagram element IDs must be unique across tables and annotations.");
@@ -105,6 +132,7 @@ export function buildImportedDesign(input) {
       for (const n of design.annotations) annotations.set(n.id,mapOf({
         kind:n.kind,x:n.x,y:n.y,w:n.w,h:n.h,method:n.method,
         title:sharedText(n.title),body:sharedText(n.body),path:sharedText(n.path),
+        imageData:n.kind === "image" ? n.imageData : undefined,
       }));
       const links = doc.getMap("erd-architecture-links");
       for (const l of design.architectureConnections) links.set(l.id,mapOf({

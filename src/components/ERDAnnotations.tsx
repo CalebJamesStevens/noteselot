@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode, type DragEvent } from "react";
 import * as Y from "yjs";
-import { Box, CircleDot, Code2, FileText, GitBranch, Trash2, Waypoints } from "lucide-react";
+import { Box, CircleDot, Code2, FileText, GitBranch, ImagePlus, Trash2, Waypoints } from "lucide-react";
 import { createId } from "../id";
+import { optimizeDiagramImage, MAX_DIAGRAM_IMAGE_CHARS, MAX_DIAGRAM_IMAGES } from "../erd/imageFiles";
 
 type Value = Y.Map<unknown>;
-export type Kind = "note" | "api" | "boundary" | "control" | "entity";
-export type Annotation = { id: string; kind: Kind; x: number; y: number; w: number; h: number; title: string; body: string; method: string; path: string };
+export type Kind = "note" | "api" | "boundary" | "control" | "entity" | "image";
+export type Annotation = { id: string; kind: Kind; x: number; y: number; w: number; h: number; title: string; body: string; method: string; path: string; imageData?: string };
 export type ArchitectureLink = { id: string; from: string; to: string; label: string };
 export type TableReference = { id: string; name: string; x: number; y: number; columns: { id: string; name: string }[] };
 const methods = ["GET","POST","PUT","PATCH","DELETE","HEAD","OPTIONS"];
@@ -38,17 +39,18 @@ export function editSharedText(map: Value, key: string, next: string) {
 }
 function readNode(id: string, v: Value): Annotation {
   const kind = String(v.get("kind"));
-  return { id, kind: (["note","api","boundary","control","entity"].includes(kind) ? kind : "note") as Kind,
+  return { id, kind: (["note","api","boundary","control","entity","image"].includes(kind) ? kind : "note") as Kind,
     x: Number(v.get("x") ?? 120), y: Number(v.get("y") ?? 120), w: Number(v.get("w") ?? 255), h: Number(v.get("h") ?? 165),
     title: readText(v.get("title")), body: readText(v.get("body")),
-    method: String(v.get("method") ?? "GET"), path: readText(v.get("path")) };
+    method: String(v.get("method") ?? "GET"), path: readText(v.get("path")),
+    imageData: kind === "image" ? String(v.get("imageData") ?? "") : undefined };
 }
 function readLink(id: string, v: Value): ArchitectureLink {
   return { id, from: String(v.get("from") ?? ""), to: String(v.get("to") ?? ""), label: readText(v.get("label")) };
 }
 /** Standard BCE robustness symbols: boundary T-bar, control arrow, entity baseline. */
 function symbol(kind: Kind): ReactNode {
-  if (kind === "note") return null;
+  if (kind === "note" || kind === "image") return null;
   if (kind === "api") return <Code2 size={32}/>;
   return <svg viewBox="0 0 64 64" width="56" height="56" fill="none" stroke="currentColor" strokeWidth="2.5" role="img" aria-label={kind + " symbol"}>
     <circle cx="34" cy="30" r="19" />
@@ -71,6 +73,8 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
   const [data,setData] = useState(read), [selected,setSelected] = useState<string|null>(null),
     [selectedLine,setSelectedLine] = useState<string|null>(null), [feedback,setFeedback] = useState("");
   const drag = useRef<{id:string; action:"move"|"resize"; sx:number; sy:number; x:number; y:number; w:number; h:number}|null>(null);
+  const imagePicker = useRef<HTMLInputElement>(null);
+  const replaceImageId = useRef<string|null>(null);
   useEffect(() => { const update=()=>setData(read());
     nodes.observeDeep(update); connectors.observeDeep(update);
     return () => { nodes.unobserveDeep(update); connectors.unobserveDeep(update); };
@@ -84,7 +88,7 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
   function pickLine(id:string) { setSelectedLine(id); setSelected(null); deselectRelational(); }
   function add(kind:Kind) {
     const id=createId(), value=new Y.Map<unknown>(), title=new Y.Text(), body=new Y.Text(), path=new Y.Text();
-    title.insert(0, {note:"Note",api:"API endpoint",boundary:"Boundary",control:"Control",entity:"Entity"}[kind]);
+    title.insert(0, {note:"Note",api:"API endpoint",boundary:"Boundary",control:"Control",entity:"Entity",image:"Picture"}[kind]);
     if(kind==="api") path.insert(0,"/api/example");
     value.set("kind",kind); value.set("title",title); value.set("body",body);
     value.set("path",path); value.set("method","GET");
@@ -92,6 +96,53 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
     value.set("w",kind==="note"||kind==="api"?260:210);
     value.set("h",kind==="note"?180:kind==="api"?170:145);
     nodes.set(id,value); pickNode(id); setFeedback("");
+  }
+  async function uploadImage(file: File, targetId: string | null = null, pos?: {x:number;y:number}) {
+    try {
+      const imageData = await optimizeDiagramImage(file);
+      const existing = data.items.filter(item => item.kind === "image");
+      const others = existing.filter(item => item.id !== targetId);
+      if (!targetId && existing.length >= MAX_DIAGRAM_IMAGES)
+        throw new Error("This diagram already has the maximum of " + MAX_DIAGRAM_IMAGES + " pictures.");
+      if (others.reduce((total, item) => total + (item.imageData?.length || 0), 0) + imageData.length > MAX_DIAGRAM_IMAGE_CHARS)
+        throw new Error("Diagram picture storage is full. Remove an existing image before uploading another.");
+      const previous = targetId ? nodes.get(targetId) : undefined;
+      if (targetId && (!previous || previous.get("kind") !== "image"))
+        throw new Error("The picture you're replacing is no longer available.");
+      if (previous) {
+        previous.set("imageData", imageData);
+        setSelected(targetId);
+      } else {
+        const id = createId(), value = new Y.Map<unknown>();
+        const title = new Y.Text(), body = new Y.Text(), path = new Y.Text();
+        title.insert(0, file.name.replace(/\.[^.]+$/, "").slice(0, 160) || "Picture");
+        value.set("kind", "image"); value.set("title", title);
+        value.set("body", body); value.set("path", path);
+        value.set("method", "GET"); value.set("imageData", imageData);
+        value.set("x", Math.min(1260, Math.max(0, pos?.x ?? 90 + (data.items.length % 4) * 300)));
+        value.set("y", Math.min(790, Math.max(0, pos?.y ?? 100 + Math.floor(data.items.length / 4) * 230)));
+        value.set("w", 330); value.set("h", 240);
+        nodes.set(id, value);
+        pickNode(id);
+      }
+      setFeedback("");
+    } catch (error) {
+      setFeedback((error as Error).message);
+    }
+  }
+  function chooseImage(replacementId: string | null = null) {
+    replaceImageId.current = replacementId;
+    imagePicker.current?.click();
+  }
+  function dropImage(e: DragEvent<HTMLElement>) {
+    e.preventDefault();
+    const file = Array.from(e.dataTransfer.files).find(f => f.type.startsWith("image/"));
+    if (!file) { setFeedback("Drop a PNG, JPEG, or WebP picture."); return; }
+    const box = e.currentTarget.getBoundingClientRect();
+    void uploadImage(file, null, {x:e.clientX-box.left,y:e.clientY-box.top});
+  }
+  function dragOverImage(e: DragEvent<HTMLElement>) {
+    if (Array.from(e.dataTransfer.types).includes("Files")) e.preventDefault();
   }
   function addLine() {
     if (choices.length<2) { setFeedback("Add two diagram elements before connecting them."); return; }
@@ -135,6 +186,13 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
     <span className="erd-tools-divider" />
     {kinds.map(({kind,name,Icon})=><button key={kind} onClick={()=>add(kind)} title={name} aria-label={"Add "+name}>
       <Icon size={15}/> {name}</button>)}
+    <button onClick={() => chooseImage()} title="Upload PNG, JPEG or WebP picture"><ImagePlus size={15}/> Picture</button>
+    <input ref={imagePicker} type="file" accept="image/png,image/jpeg,image/webp"
+      aria-label="Choose diagram picture" style={{display:"none"}} onChange={e => {
+        const file = e.target.files?.[0]; e.target.value = "";
+        const target = replaceImageId.current; replaceImageId.current = null;
+        if (file) void uploadImage(file, target);
+      }} />
     <button onClick={addLine} title="Visual connector, not a SQL foreign key">
       <Waypoints size={15}/> Connect</button>
   </>;
@@ -160,10 +218,12 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
        style={{left:n.x,top:n.y,width:n.w,height:n.h}} onClick={e=>{e.stopPropagation();pickNode(n.id);}}>
       <header onPointerDown={e=>pointerDown(e,n,"move")} onPointerMove={pointerMove}
         onPointerUp={()=>{drag.current=null;}} onPointerCancel={()=>{drag.current=null;}}>
-        <span>{n.kind==="note"?"TEXT BOX":n.kind==="api"?"API":"«"+n.kind+"»"}</span>
+        <span>{n.kind==="note"?"TEXT BOX":n.kind==="api"?"API":n.kind==="image"?"PICTURE":"«"+n.kind+"»"}</span>
         <span className="erd-drag-grip" aria-hidden="true">⋮⋮</span>
       </header>
       <div className="erd-architecture-content">
+        {n.kind==="image" && n.imageData && <img className="erd-picture" src={n.imageData}
+          alt={n.title || "Diagram picture"} draggable={false} />}
         {["boundary","control","entity"].includes(n.kind)&&<div className="erd-uml-symbol">{symbol(n.kind)}</div>}
         {n.kind==="api"&&<div className="erd-api-route"><b>{n.method}</b><code>{n.path}</code></div>}
         <strong>{n.title}</strong>
@@ -176,7 +236,7 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
     {feedback&&<div className="erd-architecture-notice" role="status">{feedback}</div>}
   </>;
   const inspector: ReactNode=active?<section className="erd-architecture-inspector">
-    <h3>{active.kind==="note"?"Text box":active.kind==="api"?"API endpoint":"«"+active.kind+"»"}</h3>
+    <h3>{active.kind==="note"?"Text box":active.kind==="api"?"API endpoint":active.kind==="image"?"Picture":"«"+active.kind+"»"}</h3>
     <p className="erd-hint">Drag the header to move. Drag the lower-right corner to resize. These notes are shared and autosaved.</p>
     <label>Title<input aria-label="Architecture element title" maxLength={160} value={active.title}
       onChange={e=>field(active.id,"title",e.target.value)}/></label>
@@ -187,7 +247,10 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
       <label>Endpoint path<input aria-label="API endpoint path" value={active.path} maxLength={240}
         onChange={e=>field(active.id,"path",e.target.value)}/></label>
     </>}
-    <label>{active.kind==="note"?"Text":"Notes / responsibilities"}
+    {active.kind==="image" && <button type="button" onClick={() => chooseImage(active.id)}>
+      <ImagePlus size={14}/> Replace picture
+    </button>}
+    <label>{active.kind==="note"?"Text":active.kind==="image"?"Caption / description":"Notes / responsibilities"}
       <textarea aria-label="Architecture element notes" rows={6} maxLength={5000} value={active.body}
         onChange={e=>field(active.id,"body",e.target.value)}/></label>
     <button className="erd-danger" onClick={()=>deleteNode(active.id)}><Trash2 size={14}/> Delete element</button>
@@ -203,6 +266,6 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
     <button className="erd-danger" onClick={()=>{connectors.delete(activeLine.id);clearSelection();}}>
       <Trash2 size={14}/> Delete connector</button>
   </section>:null;
-  return {toolbar,layer,inspector,clearSelection,removeReferences,
+  return {toolbar,layer,inspector,clearSelection,removeReferences,dropImage,dragOverImage,
     snapshot:()=>({annotations:data.items,architectureConnections:data.lines})};
 }

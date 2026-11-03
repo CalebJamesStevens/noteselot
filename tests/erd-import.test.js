@@ -73,3 +73,58 @@ test("malformed JSON, broken references, duplicate IDs and unexpected versions a
   broken.architectureConnections[0].to = "missing-node";
   assert.throws(() => validateDesign(broken), /missing diagram element/);
 });
+
+
+const ONE_PIXEL_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+bN1sAAAAASUVORK5CYII=";
+test("pictures survive Noteselot JSON import and the shared Yjs state", () => {
+  const design = payload();
+  design.annotations.push({
+    id:"img1", kind:"image", x:540, y:390, w:320, h:220,
+    title:"API screenshot", body:"A reference picture", path:"", method:"GET",
+    imageData:ONE_PIXEL_PNG,
+  });
+  design.architectureConnections.push({id:"image-connection",from:"img1",to:"t1",label:"illustrates"});
+  const imported = buildImportedDesign(design);
+  assert.deepEqual(imported.summary,{tables:2,relations:1,annotations:2,connectors:2});
+  const restored = new Y.Doc();
+  Y.applyUpdate(restored, imported.state);
+  const picture = restored.getMap("erd-annotations").get("img1");
+  assert.equal(picture.get("kind"),"image");
+  assert.equal(picture.get("imageData"),ONE_PIXEL_PNG);
+  assert.equal(picture.get("x"),540);
+  assert.equal(picture.get("h"),220);
+  assert.equal(picture.get("title").toString(),"API screenshot");
+  assert.equal(restored.getMap("erd-architecture-links").get("image-connection").get("from"),"img1");
+  restored.destroy();
+});
+
+test("picture import refuses SVG, malicious data URLs, spoofed formats and missing content", () => {
+  const src = payload();
+  src.annotations.push({
+    id:"img1",kind:"image",x:0,y:0,w:300,h:200,title:"Picture",
+    body:"",method:"GET",path:"",imageData:ONE_PIXEL_PNG,
+  });
+  assert.doesNotThrow(() => validateDesign(src));
+  src.annotations[1].imageData = "data:image/svg+xml;base64," + Buffer.from("<svg onload='alert(1)'/>").toString("base64");
+  assert.throws(() => validateDesign(src), /Unsupported embedded picture/);
+  src.annotations[1].imageData = "data:image/png;base64," + Buffer.from("<script>alert(1)</script>").toString("base64");
+  assert.throws(() => validateDesign(src), /does not match/);
+  src.annotations[1].imageData = "https://untrusted.example.com/pic.png";
+  assert.throws(() => validateDesign(src), /Unsupported embedded picture/);
+  src.annotations[1].imageData = "";
+  assert.throws(() => validateDesign(src), /Unsupported embedded picture/);
+  delete src.annotations[1].imageData;
+  assert.throws(() => validateDesign(src), /Unsupported embedded picture/);
+});
+
+test("picture import enforces image count, type and encoded size budgets", () => {
+  const src = payload();
+  for(let i=0;i<9;i++) src.annotations.push({
+    id:"img"+i,kind:"image",x:i,y:0,w:300,h:220,title:"Picture",body:"",method:"GET",path:"",
+    imageData:ONE_PIXEL_PNG,
+  });
+  assert.throws(() => validateDesign(src), /storage limit/);
+  src.annotations.length = 1;
+  src.annotations[0].imageData = ONE_PIXEL_PNG;
+  assert.throws(() => validateDesign(src), /Only picture elements/);
+});

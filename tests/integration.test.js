@@ -529,6 +529,7 @@ test("native ERD plans synchronize between coworkers and persist in PostgreSQL",
 
 
 test("personal ERD can be imported as a team copy or moved in place with access controls", async () => {
+  const imageData = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+bN1sAAAAASUVORK5CYII=";
   const owner = await register("TransferOwner"), member = await register("TransferMember");
   const outsider = await register("TransferOutsider");
   const team = await request("/teams", {name:"Diagram transfer team"}, owner.cookie);
@@ -553,12 +554,19 @@ test("personal ERD can be imported as a team copy or moved in place with access 
   col.set("primary",true); col.set("nullable",false);
   cols.push([col]); value.set("columns",cols);
   editor.doc.getMap("erd-tables").set("personal-table",value);
+  const picture = new Y.Map();
+  picture.set("kind","image"); picture.set("imageData",imageData);
+  picture.set("x",300); picture.set("y",350); picture.set("w",360); picture.set("h",230);
+  const pictureTitle = new Y.Text(); pictureTitle.insert(0,"Personal screenshot");
+  picture.set("title",pictureTitle);
+  editor.doc.getMap("erd-annotations").set("personal-picture",picture);
   await waitFor(async () => {
     const {rows} = await sql.query("SELECT state FROM notes WHERE id=$1",[originalId]);
     if (!rows[0]?.state) return false;
     const restored = new Y.Doc();
     Y.applyUpdate(restored,rows[0].state);
-    const result = restored.getMap("erd-tables").get("personal-table")?.get("name") === "PERSONAL_TABLE";
+    const result = restored.getMap("erd-tables").get("personal-table")?.get("name") === "PERSONAL_TABLE"
+      && restored.getMap("erd-annotations").get("personal-picture")?.get("imageData") === imageData;
     restored.destroy();
     return result;
   });
@@ -570,7 +578,9 @@ test("personal ERD can be imported as a team copy or moved in place with access 
     ]}],
     relations:[],
     annotations:[{id:"an1",kind:"note",x:400,y:200,w:240,h:145,title:"Team notes",
-      body:"Documented behavior",method:"GET",path:""}],
+      body:"Documented behavior",method:"GET",path:""},
+      {id:"img1",kind:"image",x:500,y:80,w:300,h:220,title:"Team screenshot",
+       body:"Screenshot",method:"GET",path:"",imageData}],
     architectureConnections:[{id:"al1",from:"an1",to:"tb1",label:"documents"}],
   };
   const forbiddenImport = await request("/erd/import",
@@ -594,6 +604,7 @@ test("personal ERD can be imported as a team copy or moved in place with access 
   assert.equal(restored.getMap("erd-tables").get("tb1").get("name"),"CUSTOMERS");
   assert.equal(restored.getMap("erd-annotations").get("an1").get("body").toString(),"Documented behavior");
   assert.equal(restored.getMap("erd-architecture-links").get("al1").get("to"),"tb1");
+  assert.equal(restored.getMap("erd-annotations").get("img1").get("imageData"),imageData);
   restored.destroy();
   const stillPersonal = await sql.query("SELECT team_id FROM notes WHERE id=$1",[originalId]);
   assert.equal(stillPersonal.rows[0].team_id,null);
@@ -622,5 +633,6 @@ test("personal ERD can be imported as a team copy or moved in place with access 
   const verified = new Y.Doc();
   Y.applyUpdate(verified,persisted.rows[0].state);
   assert.equal(verified.getMap("erd-tables").get("personal-table").get("name"),"PERSONAL_TABLE");
+  assert.equal(verified.getMap("erd-annotations").get("personal-picture").get("imageData"),imageData);
   verified.destroy();
 });

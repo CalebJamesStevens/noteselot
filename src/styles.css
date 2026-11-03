@@ -2369,3 +2369,38 @@ form {
   .erd-tools-divider { display: none; }
   .erd-toolbar { row-gap: 6px; }
 }
+
+
+/* Pictures on the shared ERD / architecture planning canvas */
+.erd-architecture-card.kind-image .erd-architecture-content {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  overflow: hidden;
+  min-height: 0;
+  padding: 6px 9px 15px;
+  gap: 3px;
+}
+.erd-architecture-card.kind-image .erd-picture {
+  display: block;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  max-height: calc(100% - 24px);
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+}
+.erd-architecture-card.kind-image .erd-architecture-content > strong {
+  font-size: 11px;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.erd-architecture-card.kind-image .erd-architecture-content > p {
+  font-size: 10px;
+  line-height: 1.2;
+  overflow: hidden;
+  max-height: 30px;
+}
