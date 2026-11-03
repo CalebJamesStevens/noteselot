@@ -16,6 +16,7 @@ import {
 } from "./auth.js";
 import { createCollaboration } from "./collaboration.js";
 import { initialState } from "./templates.js";
+import { buildImportedDesign } from "./erd-import.js";
 
 const origin = new URL(process.env.APP_URL || "http://localhost:3000").origin;
 const secure = origin.startsWith("https:");
@@ -267,6 +268,23 @@ app.post("/api/notes", async (req, res) => {
   );
   res.status(201).json(rows[0]);
 });
+/** Import Noteselot ERD JSON as a separate personal or team document. */
+app.post("/api/erd/import", async (req, res) => {
+  const input = z.object({ title, team_id: id.nullable().default(null), design: z.object({}).passthrough() }).parse(req.body);
+  let imported;
+  try { imported = buildImportedDesign(input.design); }
+  catch (error) { return res.status(400).json({error: error.message}); }
+  const { rows } = await db.query(
+    "INSERT INTO notes(id,owner_id,team_id,title,kind,template,state,search_text) " +
+    "SELECT $1,$2,$3,$4,'erd','blank',$5,$6 " +
+    "WHERE $3::uuid IS NULL OR EXISTS " +
+    "(SELECT 1 FROM members WHERE team_id=$3 AND user_id=$2) " +
+    "RETURNING id,owner_id,team_id,title,kind,updated_at",
+    [randomUUID(),req.user.id,input.team_id,input.title,imported.state,imported.search],
+  );
+  if (!rows.length) return res.status(403).json({error:"Join the destination team before importing."});
+  res.status(201).json({...rows[0],summary:imported.summary});
+});
 app.use("/api/notes/:id", async (req, res, next) => {
   const noteId = id.parse(req.params.id);
   const note = await canAccess(req.user.id, noteId);
@@ -274,6 +292,23 @@ app.use("/api/notes/:id", async (req, res, next) => {
     return res.status(404).json({ error: "Note not found or access removed." });
   req.note = note;
   next();
+});
+/** Move the SAME personal ERD into a team, preserving its state, comments and revisions. */
+app.post("/api/notes/:id/move-to-team", async (req, res) => {
+  const { team_id } = z.object({team_id:id}).parse(req.body);
+  if (req.note.kind !== "erd" || req.note.owner_id !== req.user.id || req.note.team_id !== null)
+    return res.status(403).json({error:"Only the owner can move a personal database design to a team."});
+  const { rows } = await db.query(
+    "UPDATE notes n SET team_id=$3,updated_at=now() " +
+    "WHERE n.id=$1 AND n.owner_id=$2 AND n.team_id IS NULL AND n.kind='erd' " +
+    "AND n.deleted_at IS NULL AND EXISTS " +
+    "(SELECT 1 FROM members m WHERE m.team_id=$3 AND m.user_id=$2) " +
+    "RETURNING n.id,n.team_id,n.updated_at",
+    [req.note.id,req.user.id,team_id],
+  );
+  if (!rows.length) return res.status(403).json({error:"Destination team membership is required."});
+  collaboration.closeConnections(req.note.id);
+  res.json({...rows[0],ok:true});
 });
 app.patch("/api/notes/:id", async (req, res) => {
   const input = z

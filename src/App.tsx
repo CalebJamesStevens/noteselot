@@ -9,6 +9,7 @@ import {
   FileText,
   GitBranch,
   Database,
+  Upload,
   Home,
   LockKeyhole,
   LogOut,
@@ -45,7 +46,7 @@ export default function App() {
     [layout, setLayout] = useState("grid"),
     [sort, setSort] = useState("recent"),
     [modal, setModal] = useState<
-      "create" | "team" | "members" | "settings" | null
+      "create" | "team" | "members" | "settings" | "import" | null
     >(null),
     [theme, setTheme] = useState(
       localStorage.getItem("noteselot-theme") || "dark",
@@ -53,7 +54,9 @@ export default function App() {
     [notice, setNotice] = useState(""),
     [sidebar, setSidebar] = useState(false),
     [members, setMembers] = useState<User[]>([]),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [importFile, setImportFile] = useState<File | null>(null),
+    [importTarget, setImportTarget] = useState("");
   const search = useRef<HTMLInputElement>(null);
   const activeTeam = teams.find((t) => t.id === view),
     current = notes.find((n) => n.id === selected && !n.deleted_at);
@@ -164,6 +167,32 @@ export default function App() {
       setModal(null);
     } catch (e) {
       setNotice((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function importDesign(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!importFile || busy) return;
+    setBusy(true);
+    try {
+      if (importFile.size > 850000) throw new Error("Choose a JSON file smaller than 850 KB.");
+      const design = JSON.parse(await importFile.text());
+      const name = importFile.name.replace(/\.erd\.json$|\.json$/i, "").slice(0,200).trim() || "Imported database design";
+      const imported = await post<Note>("/erd/import", {
+        title: name,
+        team_id: importTarget || null,
+        design,
+      });
+      await refresh();
+      if (importTarget) setView(importTarget);
+      else setView("personal");
+      setSelected(imported.id);
+      setModal(null);
+      setImportFile(null);
+      setNotice("Database design imported as a new document. Your original remains unchanged.");
+    } catch (error) {
+      setNotice(error instanceof SyntaxError ? "This file isn't valid JSON." : (error as Error).message);
     } finally {
       setBusy(false);
     }
@@ -369,6 +398,13 @@ export default function App() {
             note={current}
             user={user}
             theme={theme}
+            teams={teams}
+            onMoved={(teamId) => {
+              setSelected(null);
+              setView(teamId);
+              setNotice("Database design moved to the team. All team members can now edit it.");
+              void refresh();
+            }}
             onClose={() => {
               setSelected(null);
               void refresh();
@@ -457,7 +493,43 @@ export default function App() {
                 <ArrowRight size={18} />
               </button>
             ))}
+            <button
+              disabled={busy}
+              onClick={() => {
+                setImportTarget(activeTeam?.id || "");
+                setImportFile(null);
+                setModal("import");
+              }}
+            >
+              <Upload size={24}/>
+              <span>
+                <strong>Import database design</strong>
+                <small>Restore a Noteselot .erd.json into personal or team space.</small>
+              </span>
+              <ArrowRight size={18}/>
+            </button>
           </div>
+        </Modal>
+      )}
+      {modal === "import" && (
+        <Modal title="Import database design" onClose={() => setModal(null)}>
+          <form onSubmit={importDesign}>
+            <p className="muted">Imports a new copy, without changing or removing the personal original.</p>
+            <label>Noteselot diagram JSON
+              <input type="file" accept=".json,.erd.json,application/json" required
+                onChange={(e) => setImportFile(e.target.files?.[0] || null)}/>
+            </label>
+            <label>Destination
+              <select aria-label="Import destination" value={importTarget} onChange={(e) => setImportTarget(e.target.value)}>
+                <option value="">Personal space</option>
+                {teams.map((t) => <option key={t.id} value={t.id}>Team: {t.name}</option>)}
+              </select>
+            </label>
+            {importTarget && <p className="muted">Members of this team will be able to view and edit the imported diagram.</p>}
+            <button className="primary" disabled={!importFile || busy}>
+              <Upload size={16}/> {busy ? "Importing…" : "Import diagram"}
+            </button>
+          </form>
         </Modal>
       )}
       {modal === "team" && (

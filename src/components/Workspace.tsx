@@ -15,11 +15,12 @@ import {
   X,
   Send,
   Copy,
+  FolderInput,
 } from "lucide-react";
-import type { Note, User, Comment } from "../types";
+import type { Note, User, Comment, Team } from "../types";
 import NoteEditor from "./Editor";
 import { api, post } from "../api";
-import { Avatar, dateLabel } from "./ui";
+import { Avatar, dateLabel, Modal } from "./ui";
 const Board = lazy(() => import("./Board"));
 const Diagram = lazy(() => import("./Diagram"));
 const DatabaseDesigner = lazy(() => import("./DatabaseDesigner"));
@@ -27,6 +28,8 @@ export default function Workspace({
   note,
   user,
   theme,
+  teams,
+  onMoved,
   onClose,
   onRefresh,
   onError,
@@ -34,6 +37,8 @@ export default function Workspace({
   note: Note;
   user: User;
   theme: string;
+  teams: Team[];
+  onMoved: (teamId: string) => void;
   onClose: () => void;
   onRefresh: () => Promise<void>;
   onError: (s: string) => void;
@@ -59,7 +64,10 @@ export default function Workspace({
     ),
     [message, setMessage] = useState(""),
     [peers, setPeers] = useState<string[]>([]),
-    [sending, setSending] = useState(false);
+    [sending, setSending] = useState(false),
+    [moveOpen, setMoveOpen] = useState(false),
+    [moveTeam, setMoveTeam] = useState(""),
+    [moving, setMoving] = useState(false);
   const { doc, provider } = connection;
   useEffect(() => {
     const statusChange = ({ status }: { status: string }) =>
@@ -170,6 +178,22 @@ export default function Workspace({
       onError((e as Error).message);
     }
   }
+  async function moveToTeam() {
+    if (!moveTeam || moving || status !== "saved") return;
+    const teamName = teams.find((team) => team.id === moveTeam)?.name;
+    if (!teamName || !confirm("Move this personal design to " + teamName +
+      "? Everyone in that team will be able to view and edit it. This is not a copy.")) return;
+    setMoving(true);
+    try {
+      await post("/notes/" + note.id + "/move-to-team", {team_id: moveTeam});
+      setMoveOpen(false);
+      onMoved(moveTeam);
+    } catch (error) {
+      onError((error as Error).message);
+    } finally {
+      setMoving(false);
+    }
+  }
   function close() {
     if (
       ["offline", "save-error", "saving"].includes(status) &&
@@ -218,6 +242,16 @@ export default function Workspace({
               }[status]
             }
           </span>
+          {note.kind === "erd" && !note.team_id && note.owner_id === user.id && teams.length > 0 && (
+            <button type="button" className="icon-button" aria-label="Move personal diagram to team"
+              title="Move to team" disabled={status !== "saved"}
+              onClick={() => {
+                setMoveTeam(teams[0]?.id || "");
+                setMoveOpen(true);
+              }}>
+              <FolderInput size={18}/>
+            </button>
+          )}
           <button
             className={`icon-button ${favorite ? "is-favorite" : ""}`}
             title="Favorite"
@@ -449,6 +483,21 @@ export default function Workspace({
           </aside>
         )}
       </div>
+      {moveOpen && (
+        <Modal title="Move database design to a team" onClose={() => setMoveOpen(false)}>
+          <p className="muted">This moves the original diagram, including its existing comments and version history. All team members will be able to view and edit it.</p>
+          <label>Destination team
+            <select aria-label="Destination team" value={moveTeam} onChange={(e) => setMoveTeam(e.target.value)}>
+              {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+            </select>
+          </label>
+          <button className="primary" type="button" disabled={moving || status !== "saved" || !moveTeam}
+            onClick={() => void moveToTeam()}>
+            <FolderInput size={16}/> {moving ? "Moving…" : "Move original to team"}
+          </button>
+          {status !== "saved" && <p className="muted">Finish saving your edits before moving this diagram.</p>}
+        </Modal>
+      )}
     </section>
   );
 }

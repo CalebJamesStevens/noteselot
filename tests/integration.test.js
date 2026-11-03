@@ -526,3 +526,101 @@ test("native ERD plans synchronize between coworkers and persist in PostgreSQL",
   const outsider = await register("SchemaOutsider");
   assert.equal((await request("/notes/" + id + "/comments", undefined, outsider.cookie)).status, 404);
 });
+
+
+test("personal ERD can be imported as a team copy or moved in place with access controls", async () => {
+  const owner = await register("TransferOwner"), member = await register("TransferMember");
+  const outsider = await register("TransferOutsider");
+  const team = await request("/teams", {name:"Diagram transfer team"}, owner.cookie);
+  assert.equal(team.status,201);
+  assert.equal((await request("/teams/" + team.data.id + "/members",
+    {email:member.data.email},owner.cookie)).status,200);
+  const personal = await request("/notes",
+    {title:"My private design",kind:"erd",team_id:null},owner.cookie);
+  assert.equal(personal.status,201);
+  const originalId = personal.data.id;
+  assert.equal((await request("/notes/" + originalId + "/comments",
+    undefined,member.cookie)).status,404);
+
+  const editor = connect(originalId, owner.cookie);
+  await waitFor(() => editor.provider.isSynced);
+  const value = new Y.Map();
+  value.set("name","PERSONAL_TABLE");
+  value.set("x",175); value.set("y",230);
+  const cols = new Y.Array();
+  const col = new Y.Map();
+  col.set("id","personal-key"); col.set("name","ID"); col.set("type","BIGINT");
+  col.set("primary",true); col.set("nullable",false);
+  cols.push([col]); value.set("columns",cols);
+  editor.doc.getMap("erd-tables").set("personal-table",value);
+  await waitFor(async () => {
+    const {rows} = await sql.query("SELECT state FROM notes WHERE id=$1",[originalId]);
+    if (!rows[0]?.state) return false;
+    const restored = new Y.Doc();
+    Y.applyUpdate(restored,rows[0].state);
+    const result = restored.getMap("erd-tables").get("personal-table")?.get("name") === "PERSONAL_TABLE";
+    restored.destroy();
+    return result;
+  });
+
+  const design = {
+    version:3,dialect:"db2i",schema:"WEBTEST",
+    tables:[{id:"tb1",name:"CUSTOMERS",x:200,y:250,columns:[
+      {id:"col1",name:"ID",type:"BIGINT",primary:true,nullable:false},
+    ]}],
+    relations:[],
+    annotations:[{id:"an1",kind:"note",x:400,y:200,w:240,h:145,title:"Team notes",
+      body:"Documented behavior",method:"GET",path:""}],
+    architectureConnections:[{id:"al1",from:"an1",to:"tb1",label:"documents"}],
+  };
+  const forbiddenImport = await request("/erd/import",
+    {title:"Not authorized",team_id:team.data.id,design},outsider.cookie);
+  assert.equal(forbiddenImport.status,403);
+  const invalidImport = await request("/erd/import",
+    {title:"Bad",team_id:team.data.id,design:{version:999,tables:[],relations:[]}},owner.cookie);
+  assert.equal(invalidImport.status,400);
+  const imported = await request("/erd/import",
+    {title:"Team copy",team_id:team.data.id,design},owner.cookie);
+  assert.equal(imported.status,201);
+  assert.notEqual(imported.data.id,originalId);
+  assert.equal(imported.data.team_id,team.data.id);
+  assert.equal((await request("/notes/" + imported.data.id + "/comments",
+    undefined,member.cookie)).status,200);
+  assert.equal((await request("/notes/" + imported.data.id + "/comments",
+    undefined,outsider.cookie)).status,404);
+  const {rows:copyRows} = await sql.query("SELECT state FROM notes WHERE id=$1",[imported.data.id]);
+  const restored = new Y.Doc();
+  Y.applyUpdate(restored,copyRows[0].state);
+  assert.equal(restored.getMap("erd-tables").get("tb1").get("name"),"CUSTOMERS");
+  assert.equal(restored.getMap("erd-annotations").get("an1").get("body").toString(),"Documented behavior");
+  assert.equal(restored.getMap("erd-architecture-links").get("al1").get("to"),"tb1");
+  restored.destroy();
+  const stillPersonal = await sql.query("SELECT team_id FROM notes WHERE id=$1",[originalId]);
+  assert.equal(stillPersonal.rows[0].team_id,null);
+
+  const denied = await request("/notes/" + originalId + "/move-to-team",
+    {team_id:team.data.id},member.cookie);
+  assert.equal(denied.status,404);
+  const outsiderTeam = await request("/teams",{name:"Other team"},outsider.cookie);
+  const noMembership = await request("/notes/" + originalId + "/move-to-team",
+    {team_id:outsiderTeam.data.id},owner.cookie);
+  assert.equal(noMembership.status,403);
+  const moved = await request("/notes/" + originalId + "/move-to-team",
+    {team_id:team.data.id},owner.cookie);
+  assert.equal(moved.status,200);
+  assert.equal(moved.data.id,originalId);
+  assert.equal(moved.data.team_id,team.data.id);
+  assert.equal((await request("/notes/" + originalId + "/comments",
+    undefined,member.cookie)).status,200);
+  assert.equal((await request("/notes/" + originalId + "/comments",
+    undefined,outsider.cookie)).status,404);
+  const repeat = await request("/notes/" + originalId + "/move-to-team",
+    {team_id:team.data.id},owner.cookie);
+  assert.equal(repeat.status,403);
+  const persisted = await sql.query("SELECT state,team_id FROM notes WHERE id=$1",[originalId]);
+  assert.equal(persisted.rows[0].team_id,team.data.id);
+  const verified = new Y.Doc();
+  Y.applyUpdate(verified,persisted.rows[0].state);
+  assert.equal(verified.getMap("erd-tables").get("personal-table").get("name"),"PERSONAL_TABLE");
+  verified.destroy();
+});
