@@ -242,7 +242,7 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
       {feedback && <p className="erd-feedback" role="status">{feedback}</p>}
       <div className="erd-layout">
         <div className="erd-scroll">
-          <div className="erd-stage">
+          <div className="erd-stage" onDragOver={annotations.dragOverImage} onDrop={annotations.dropImage}>
             <svg className="erd-lines" width="1600" height="1050" viewBox="0 0 1600 1050" aria-label="Crow's foot relationships">
               {model.relations.map((r) => {
                 const from = model.tables.find((t) => t.id === r.fromTable);
