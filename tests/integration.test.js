@@ -470,6 +470,38 @@ test("native ERD plans synchronize between coworkers and persist in PostgreSQL",
   table.set("columns", columns);
   a.doc.getMap("erd-tables").set("table-a", table);
   await waitFor(() => b.doc.getMap("erd-tables").get("table-a")?.get("name") === "customers");
+  // Architecture notes, API endpoints, BCE nodes and their connections travel with the ERD.
+  const api = new Y.Map();
+  const apiTitle = new Y.Text();
+  apiTitle.insert(0, "Customer API");
+  const apiPath = new Y.Text();
+  apiPath.insert(0, "/api/customers");
+  const apiBody = new Y.Text();
+  apiBody.insert(0, "Return active customers");
+  api.set("kind", "api");
+  api.set("title", apiTitle);
+  api.set("path", apiPath);
+  api.set("body", apiBody);
+  api.set("method", "GET");
+  api.set("x", 370); api.set("y", 150); api.set("w", 260); api.set("h", 170);
+  a.doc.getMap("erd-annotations").set("api-a", api);
+  await waitFor(() => b.doc.getMap("erd-annotations").get("api-a")?.get("title")?.toString() === "Customer API");
+  const peerBody = b.doc.getMap("erd-annotations").get("api-a").get("body");
+  peerBody.insert(peerBody.length, " via service");
+  await waitFor(() => a.doc.getMap("erd-annotations").get("api-a")?.get("body")?.toString().includes("via service"));
+  const boundary = new Y.Map();
+  const boundaryTitle = new Y.Text();
+  boundaryTitle.insert(0, "External boundary");
+  boundary.set("kind", "boundary"); boundary.set("title", boundaryTitle);
+  boundary.set("x", 100); boundary.set("y", 300);
+  a.doc.getMap("erd-annotations").set("boundary-a", boundary);
+  const connection = new Y.Map();
+  const connectionLabel = new Y.Text();
+  connectionLabel.insert(0, "uses");
+  connection.set("from", "api-a"); connection.set("to", "table-a");
+  connection.set("label", connectionLabel);
+  a.doc.getMap("erd-architecture-links").set("flow-a", connection);
+  await waitFor(() => b.doc.getMap("erd-architecture-links").get("flow-a")?.get("label")?.toString() === "uses");
   const peerTable = b.doc.getMap("erd-tables").get("table-a");
   peerTable.set("name", "client_accounts");
   await waitFor(() => a.doc.getMap("erd-tables").get("table-a")?.get("name") === "client_accounts");
@@ -481,7 +513,12 @@ test("native ERD plans synchronize between coworkers and persist in PostgreSQL",
     const correct = restored.getMap("erd-tables").get("table-a")?.get("name") === "client_accounts"
       && restored.getMap("erd-settings").get("dialect") === "db2i"
       && restored.getMap("erd-settings").get("schema") === "WEBTEST"
-      && rows[0].search_text.includes("client_accounts");
+      && rows[0].search_text.includes("client_accounts")
+      && rows[0].search_text.includes("/api/customers")
+      && rows[0].search_text.includes("Return active customers via service")
+      && rows[0].search_text.includes("External boundary")
+      && restored.getMap("erd-annotations").get("api-a")?.get("body")?.toString().includes("via service")
+      && restored.getMap("erd-architecture-links").get("flow-a")?.get("to") === "table-a";
     restored.destroy();
     return correct;
   });
