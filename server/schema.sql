@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS notes (
   created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), deleted_at timestamptz
 );
 -- Upgrade the existing note-kind constraint for ERD documents without replacing saved notes.
-DO $
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
@@ -32,7 +32,7 @@ BEGIN
     ALTER TABLE notes ADD CONSTRAINT notes_kind_check
       CHECK (kind IN ('note','board','diagram','erd'));
   END IF;
-END $;
+END $$;
 CREATE TABLE IF NOT EXISTS favorites (
   user_id uuid REFERENCES users ON DELETE CASCADE, note_id uuid REFERENCES notes ON DELETE CASCADE,
   PRIMARY KEY (user_id,note_id)
