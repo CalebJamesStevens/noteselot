@@ -22,6 +22,7 @@ import { api, post } from "../api";
 import { Avatar, dateLabel } from "./ui";
 const Board = lazy(() => import("./Board"));
 const Diagram = lazy(() => import("./Diagram"));
+const DatabaseDesigner = lazy(() => import("./DatabaseDesigner"));
 export default function Workspace({
   note,
   user,
@@ -269,7 +270,9 @@ export default function Workspace({
                 ? "ROOM TO EXPLORE"
                 : note.kind === "diagram"
                   ? "CONNECT YOUR THINKING"
-                  : "A THOUGHT WORTH KEEPING"}
+                  : note.kind === "erd"
+                    ? "DESIGN YOUR DATABASE"
+                    : "A THOUGHT WORTH KEEPING"}
             </div>
             <input
               className="document-title"
@@ -288,7 +291,9 @@ export default function Workspace({
                   ? "Note"
                   : note.kind === "board"
                     ? "Whiteboard"
-                    : "Diagram"}
+                    : note.kind === "erd"
+                      ? "Database design"
+                      : "Diagram"}
               </span>
               <span className="meta-dot" />
               <span>Edited {dateLabel(note.updated_at)}</span>
@@ -323,6 +328,8 @@ export default function Workspace({
                 <Board doc={doc} title={title} />
               ) : note.kind === "diagram" ? (
                 <Diagram doc={doc} title={title} theme={theme} />
+              ) : note.kind === "erd" ? (
+                <DatabaseDesigner doc={doc} title={title} />
               ) : (
                 <NoteEditor
                   doc={doc}

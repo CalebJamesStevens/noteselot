@@ -4,6 +4,7 @@ import {
   ChevronRight,
   FileText,
   GitBranch,
+  Database,
   LayoutGrid,
   List,
   LockKeyhole,
@@ -22,7 +23,7 @@ import { post } from "../api";
 import type { User, Team, Note, Kind } from "../types";
 import { dateLabel } from "./ui";
 import FeatherIcon from "./FeatherIcon";
-const kinds = { note: FileText, board: StickyNote, diagram: GitBranch };
+const kinds = { note: FileText, board: StickyNote, diagram: GitBranch, erd: Database };
 interface OverviewProps {
   activeTeam: Team | undefined;
   view: string;
@@ -168,6 +169,11 @@ export default function Overview({
               </span>
               <Plus size={18} />
             </button>
+            <button className="create-card diagram-create" onClick={() => create("erd")}>
+              <span className="create-icon"><Database size={23} /></span>
+              <span><strong>Design a database</strong><small>Tables, fields, and relationships</small></span>
+              <Plus size={18} />
+            </button>
           </section>
         )}
         <section className="notes-section">
@@ -255,7 +261,9 @@ export default function Overview({
                             ? "WHITEBOARD"
                             : n.kind === "diagram"
                               ? "DIAGRAM"
-                              : "NOTE"}
+                              : n.kind === "erd"
+                                ? "DATABASE DESIGN"
+                                : "NOTE"}
                         </span>
                       </div>
                       <h3>{n.title}</h3>
@@ -265,7 +273,9 @@ export default function Overview({
                             ? "A little space to see the bigger picture."
                             : n.kind === "diagram"
                               ? "Every connection starts with an idea."
-                              : "Something good starts with a blank page.")}
+                              : n.kind === "erd"
+                                ? "Plan tables and relationships together."
+                                : "Something good starts with a blank page.")}
                       </p>
                       <footer>
                         <span>

@@ -10,6 +10,7 @@ A self-hosted place for personal notes and shared thinking. Local accounts, coll
 - Meeting, brainstorming, and project templates.
 - Shared whiteboards with sticky notes, text, shapes, arrows, freehand drawing, resizing, undo/redo, zoom, and SVG export.
 - Collaborative Mermaid source editing with flowchart, sequence, and mind-map examples and SVG export.
+- Collaborative database schema planning with visual tables, columns, primary keys, crow's-foot relationships, PostgreSQL SQL export, and JSON export.
 - Title/body search, favorites, grid/list views, comments, soft-delete/restore, and recoverable snapshots.
 - Dark mode by default, light mode, responsive layouts, keyboard shortcuts, and larger touch targets.
 - One application container and one PostgreSQL container. No runtime CDN, telemetry, remote font, cloud collaboration, or external authentication dependency.
@@ -81,6 +82,8 @@ By default, integration tests create a disposable PostgreSQL-compatible PGlite i
 - `Ctrl/Cmd + K` opens search. `Ctrl/Cmd + Alt + N` opens the creation dialog.
 - Whiteboards use a 1600 × 1000 canvas. Select a tool and click to add an item. Drag with the selection tool. Edit selected text and dimensions in the property panel. Freehand drawing supports pointer input, including a stylus.
 - Diagrams use Mermaid source rather than a drag-and-drop graph editor.
+- Database designs are separate visual documents. Drag a table header to position it, click a table to edit columns, click **Relationship** to add a connection, and select the connection (or choose it in the inspector) to configure its source and target columns and cardinalities. The design synchronizes through existing team spaces and persists in PostgreSQL.
+- SQL export is a PostgreSQL-oriented draft, not a migration tool. Review types, keys, nullability, cardinality, and generated statements before executing it against any database. JSON export provides a portable snapshot; JSON import and direct database introspection are not included yet.
 - Images are embedded in the document and stored in PostgreSQL. PNG, JPEG, and WebP images up to 300 KB each are supported.
 - Text notes export as plain text. Whiteboards and diagrams export as SVG.
 - Comments refresh every five seconds. Document edits use live WebSockets.
