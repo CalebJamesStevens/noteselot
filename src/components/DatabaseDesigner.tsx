@@ -3,6 +3,7 @@ import * as Y from "yjs";
 import { Database, Download, Link2, Plus, Trash2 } from "lucide-react";
 import { createId } from "../id";
 import { download } from "../api";
+import { useERDAnnotations } from "./ERDAnnotations";
 
 import { 
   dataTypes, db2iFieldPresets, defaultColumnType, generateSQL,
@@ -100,6 +101,7 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedRelation, setSelectedRelation] = useState<string | null>(null);
   const [feedback, setFeedback] = useState("");
+  const annotations = useERDAnnotations(doc, model.tables, selected, () => { setSelected(null); setSelectedRelation(null); });
   const drag = useRef<{ id: string; x: number; y: number; pointerX: number; pointerY: number } | null>(null);
   useEffect(() => {
     const update = () => setModel(snapshot());
@@ -168,6 +170,7 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
     if (!confirm("Remove this table and its relationships?")) return;
     doc.transact(() => {
       tableStore.delete(id);
+      annotations.removeReferences(id);
       for (const [relId, rel] of relationStore.entries()) {
         if (rel.get("fromTable") === id || rel.get("toTable") === id) relationStore.delete(relId);
       }
@@ -203,7 +206,7 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
     });
   }
   function exportJSON() {
-    download(title + ".erd.json", JSON.stringify({ version: 2, ...model }, null, 2), "application/json");
+    download(title + ".erd.json", JSON.stringify({ version: 3, ...model, ...annotations.snapshot() }, null, 2), "application/json");
   }
   function exportDDL() {
     try {
@@ -230,6 +233,7 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
         </label>
         <button onClick={addTable}><Plus size={15} /> Table</button>
         <button onClick={addRelation}><Link2 size={15} /> Relationship</button>
+        {annotations.toolbar}
         <button onClick={exportJSON}><Download size={15} /> JSON</button>
         <button onClick={exportDDL}>
           <Download size={15} /> {dialect === "db2i" ? "IBM i Db2 SQL" : "PostgreSQL SQL"}
@@ -250,7 +254,7 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
                 const dx = right ? 1 : -1;
                 return (
                   <g key={r.id} className={selectedRelation === r.id ? "erd-line selected" : "erd-line"}
-                    onClick={() => { setSelectedRelation(r.id); setSelected(null); }}>
+                    onClick={() => { annotations.clearSelection(); setSelectedRelation(r.id); setSelected(null); }}>
                     <path d={"M " + a.x + " " + a.y + " C " + (a.x + dx * 85) + " " + a.y + ", " + (b.x - dx * 85) + " " + b.y + ", " + b.x + " " + b.y}
                       fill="none" stroke="currentColor" strokeWidth="2" />
                     <CardinalityMark x={a.x} y={a.y} dir={dx} kind={r.fromCard} />
@@ -261,14 +265,16 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
                 );
               })}
             </svg>
+            {annotations.layer}
             {model.tables.map((table) => (
               <article key={table.id} className={selected === table.id ? "erd-table selected" : "erd-table"}
                 style={{ left: table.x, top: table.y }}
-                onClick={() => { setSelected(table.id); setSelectedRelation(null); }}>
+                onClick={() => { annotations.clearSelection(); setSelected(table.id); setSelectedRelation(null); }}>
                 <header onPointerDown={(e) => {
                   if (e.button !== 0) return;
                   drag.current = { id: table.id, x: table.x, y: table.y, pointerX: e.clientX, pointerY: e.clientY };
                   e.currentTarget.setPointerCapture(e.pointerId);
+                  annotations.clearSelection();
                   setSelected(table.id);
                   setSelectedRelation(null);
                 }} onPointerMove={moveTable} onPointerUp={() => { drag.current = null; }}
@@ -303,7 +309,7 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
               <p className="erd-hint">Optional library qualifier. Exports SQL naming (SCHEMA.TABLE), not DDS source or physical/logical file recovery.</p>
             </section>
           )}
-          {active ? (
+          {annotations.inspector ? annotations.inspector : active ? (
             <>
               <h3>Table properties</h3>
               <label>Table name<input value={active.name} maxLength={80} onChange={(e) => getTable(active.id)?.set("name", e.target.value)} /></label>
