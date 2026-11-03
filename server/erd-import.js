@@ -48,7 +48,9 @@ const designSchema = z.object({
 
 /** Allow only bounded, actual raster images. Data URLs cannot fetch remote resources or contain SVG. */
 export function validateEmbeddedImageData(uri) {
-  if (typeof uri !== "string" || uri.length > 220000)
+  if (typeof uri !== "string" || !uri.length)
+    throw new Error("Unsupported embedded picture. A PNG, JPEG, or WebP image is required.");
+  if (uri.length > 220000)
     throw new Error("Embedded pictures must be smaller than 220 KB of encoded image data.");
   const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(uri);
   if (!match) throw new Error("Unsupported embedded picture. Use base64 PNG, JPEG, or WebP.");
