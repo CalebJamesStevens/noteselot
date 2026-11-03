@@ -16,6 +16,9 @@ function plainText(document) {
       const cols = table.get("columns");
       return [String(table.get("name") || ""), ...((cols?.toArray() || []).map((col) => String(col.get("name") || "")))];
     }),
+    ...Array.from(document.getMap("erd-annotations").values()).flatMap((node) =>
+      ["title", "body", "path"].map((key) => String(node.get(key) || ""))),
+    ...Array.from(document.getMap("erd-architecture-links").values()).map((link) => String(link.get("label") || "")),
     ...Array.from(document.getMap("shapes").values()).map((s) => s.text || ""),
   ]
     .join(" ")
