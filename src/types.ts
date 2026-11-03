@@ -8,7 +8,7 @@ export interface Team {
   name: string;
   owner_id: string;
 }
-export type Kind = "note" | "board" | "diagram";
+export type Kind = "note" | "board" | "diagram" | "erd";
 export interface Note {
   id: string;
   title: string;
