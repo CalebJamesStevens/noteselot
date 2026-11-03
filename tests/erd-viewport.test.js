@@ -33,7 +33,7 @@ test("fit to diagram uses the bounding rectangle of all elements", () => {
     {x:100,y:100,width:236,height:130},
     {x:750,y:500,width:240,height:200},
   ],{width:700,height:500},40);
-  assert.equal(result.zoom,0.472);
+  assert.equal(result.zoom,0.697);
   // The point at the center of the drawn content remains centered in the viewport.
   const diagramMidX = (100+990)/2, diagramMidY = (100+700)/2;
   assert.ok(Math.abs(result.scroll.left-(diagramMidX*result.zoom-350))<0.01);
