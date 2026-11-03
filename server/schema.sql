@@ -16,10 +16,23 @@ CREATE TABLE IF NOT EXISTS members (
 );
 CREATE TABLE IF NOT EXISTS notes (
   id uuid PRIMARY KEY, owner_id uuid NOT NULL REFERENCES users, team_id uuid REFERENCES teams ON DELETE CASCADE,
-  title text NOT NULL DEFAULT 'Untitled', kind text NOT NULL DEFAULT 'note' CHECK (kind IN ('note','board','diagram')),
+  title text NOT NULL DEFAULT 'Untitled', kind text NOT NULL DEFAULT 'note' CHECK (kind IN ('note','board','diagram','erd')),
   template text NOT NULL DEFAULT 'blank', state bytea, search_text text NOT NULL DEFAULT '',
   created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), deleted_at timestamptz
 );
+-- Upgrade the existing note-kind constraint for ERD documents without replacing saved notes.
+DO $
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'notes'::regclass AND conname = 'notes_kind_check'
+      AND pg_get_constraintdef(oid) LIKE '%erd%'
+  ) THEN
+    ALTER TABLE notes DROP CONSTRAINT IF EXISTS notes_kind_check;
+    ALTER TABLE notes ADD CONSTRAINT notes_kind_check
+      CHECK (kind IN ('note','board','diagram','erd'));
+  END IF;
+END $;
 CREATE TABLE IF NOT EXISTS favorites (
   user_id uuid REFERENCES users ON DELETE CASCADE, note_id uuid REFERENCES notes ON DELETE CASCADE,
   PRIMARY KEY (user_id,note_id)
