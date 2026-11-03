@@ -450,6 +450,11 @@ test("native ERD plans synchronize between coworkers and persist in PostgreSQL",
   const id = result.data.id;
   const a = connect(id, alice.cookie), b = connect(id, bob.cookie);
   await waitFor(() => a.provider.isSynced && b.provider.isSynced);
+  // The optional IBM i dialect and library are shared Yjs document settings.
+  a.doc.getMap("erd-settings").set("dialect", "db2i");
+  a.doc.getMap("erd-settings").set("schema", "WEBTEST");
+  await waitFor(() => b.doc.getMap("erd-settings").get("dialect") === "db2i"
+    && b.doc.getMap("erd-settings").get("schema") === "WEBTEST");
   const table = new Y.Map();
   table.set("name", "customers");
   table.set("x", 120);
@@ -474,6 +479,8 @@ test("native ERD plans synchronize between coworkers and persist in PostgreSQL",
     const restored = new Y.Doc();
     Y.applyUpdate(restored, rows[0].state);
     const correct = restored.getMap("erd-tables").get("table-a")?.get("name") === "client_accounts"
+      && restored.getMap("erd-settings").get("dialect") === "db2i"
+      && restored.getMap("erd-settings").get("schema") === "WEBTEST"
       && rows[0].search_text.includes("client_accounts");
     restored.destroy();
     return correct;
