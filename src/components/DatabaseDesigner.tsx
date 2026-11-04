@@ -120,7 +120,8 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
   const [selectedRelation, setSelectedRelation] = useState<string | null>(null);
   const [feedback, setFeedback] = useState("");
   const annotations = useERDAnnotations(doc, model.tables, selected,
-    () => { setSelected(null); setSelectedRelation(null); }, camera.zoom, centerWorld);
+    () => { setSelected(null); setSelectedRelation(null); }, camera.zoom, centerWorld,
+    (x,y) => screenToWorld(cameraRef.current,{x,y}));
   const drag = useRef<{ id: string; x: number; y: number; pointerX: number; pointerY: number } | null>(null);
   useEffect(() => {
     const update = () => setModel(snapshot());
@@ -363,12 +364,13 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
       <div className="erd-layout">
         <div className={isPanning ? "erd-scroll is-panning" : "erd-scroll"} ref={canvasRef}
           aria-label="Infinite diagram canvas, drag empty space to pan"
+          onDragOver={annotations.dragOverImage} onDrop={annotations.dropImage}
           onPointerDownCapture={onPanCapture} onPointerDown={onBlankPan}
           onPointerMove={movePan} onPointerUp={endPan} onPointerCancel={endPan}
           style={{backgroundSize:`${22*camera.zoom}px ${22*camera.zoom}px`,
             backgroundPosition:`${camera.x}px ${camera.y}px`}}>
           <div className="erd-stage" style={{transform:`translate(${camera.x}px,${camera.y}px) scale(${camera.zoom})`,
-            transformOrigin:"top left"}} onDragOver={annotations.dragOverImage} onDrop={annotations.dropImage}>
+            transformOrigin:"top left"}}>
             <svg className="erd-lines" width="1600" height="1050" viewBox="0 0 1600 1050" aria-label="Crow's foot relationships">
               {model.relations.map((r) => {
                 const from = model.tables.find((t) => t.id === r.fromTable);
