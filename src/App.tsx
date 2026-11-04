@@ -16,6 +16,8 @@ import {
   Menu,
   Moon,
   Plus,
+  PanelLeftClose,
+  PanelLeftOpen,
   Search,
   Settings,
   Star,
@@ -53,6 +55,7 @@ export default function App() {
     ),
     [notice, setNotice] = useState(""),
     [sidebar, setSidebar] = useState(false),
+    [sidebarCompact, setSidebarCompact] = useState(false),
     [members, setMembers] = useState<User[]>([]),
     [busy, setBusy] = useState(false),
     [importFile, setImportFile] = useState<File | null>(null),
@@ -228,11 +231,19 @@ export default function App() {
             : activeTeam?.name || "Your notes";
   const count = notes.filter((n) => !n.deleted_at).length;
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${current?.kind === "erd" && sidebarCompact ? "sidebar-minimized" : ""}`}>
       {sidebar && (
         <div className="sidebar-scrim" onClick={() => setSidebar(false)} />
       )}
       <aside className={`sidebar ${sidebar ? "open" : ""}`}>
+        {current?.kind === "erd" && (
+          <button className="sidebar-compact-toggle" type="button"
+            aria-label={sidebarCompact ? "Expand Noteselot sidebar" : "Collapse Noteselot sidebar"}
+            title={sidebarCompact ? "Expand sidebar" : "Collapse sidebar"}
+            aria-pressed={sidebarCompact} onClick={() => setSidebarCompact(v => !v)}>
+            {sidebarCompact ? <PanelLeftOpen size={18}/> : <PanelLeftClose size={18}/>}
+          </button>
+        )}
         <a
           href="/"
           className="brand"

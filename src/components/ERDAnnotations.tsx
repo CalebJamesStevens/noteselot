@@ -212,19 +212,25 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
     const v=nodes.get(id);if(v)editSharedText(v,key,value);
   }
   const toolbar=<>
-    <span className="erd-tools-divider" />
-    {kinds.map(({kind,name,Icon})=><button key={kind} onClick={()=>add(kind)} title={name} aria-label={"Add "+name}>
-      <Icon size={15}/> {name}</button>)}
-    <button onClick={() => chooseImage()} title="Upload PNG, JPEG or WebP picture"><ImagePlus size={15}/> Picture</button>
+    <button type="button" className="erd-action-button" onClick={()=>add("note")} title="Add text box" aria-label="Add text box">
+      <FileText size={17}/><span className="erd-action-label">Text</span></button>
+    <button type="button" className="erd-action-button" onClick={() => chooseImage()}
+      title="Upload picture" aria-label="Add picture"><ImagePlus size={17}/><span className="erd-action-label">Picture</span></button>
+    <button type="button" className="erd-action-button" onClick={addLine}
+      title="Connect elements (not a SQL foreign key)" aria-label="Add architecture connector">
+      <Waypoints size={17}/><span className="erd-action-label">Connect</span></button>
     <input ref={imagePicker} type="file" accept="image/png,image/jpeg,image/webp"
       aria-label="Choose diagram picture" style={{display:"none"}} onChange={e => {
         const file = e.target.files?.[0]; e.target.value = "";
         const target = replaceImageId.current; replaceImageId.current = null;
         if (file) void uploadImage(file, target);
       }} />
-    <button onClick={addLine} title="Visual connector, not a SQL foreign key">
-      <Waypoints size={15}/> Connect</button>
   </>;
+  const extraToolbar = kinds.filter(item => item.kind !== "note").map(({kind,name,Icon})=>(
+    <button key={kind} type="button" onClick={()=>add(kind)} title={"Add "+name} aria-label={"Add "+name}>
+      <Icon size={17}/><span>{name}</span>
+    </button>
+  ));
   const layer=<>
     <svg className="erd-architecture-lines" width="1600" height="1050" viewBox="0 0 1600 1050" aria-label="Architecture connectors">
       <defs><marker id="erd-arch-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
@@ -332,6 +338,6 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
     <button className="erd-danger" onClick={()=>{connectors.delete(activeLine.id);clearSelection();}}>
       <Trash2 size={14}/> Delete connector</button>
   </section>:null;
-  return {toolbar,layer,inspector,clearSelection,removeReferences,dropImage,dragOverImage,
+  return {toolbar,extraToolbar,layer,inspector,selectedId:selected,selectedLineId:selectedLine,clearSelection,removeReferences,dropImage,dragOverImage,
     snapshot:()=>({annotations:data.items,architectureConnections:data.lines})};
 }

@@ -209,7 +209,7 @@ export default function Workspace({
   }
   return (
     <section
-      className={`workspace ${note.kind !== "note" ? "canvas-workspace" : ""}`}
+      className={`workspace ${note.kind !== "note" ? "canvas-workspace" : ""} ${note.kind === "erd" ? "erd-workspace" : ""}`}
     >
       <header className="workspace-topbar">
         <button
