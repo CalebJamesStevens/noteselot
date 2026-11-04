@@ -1,7 +1,7 @@
 /** Browser-local pan/zoom. World coordinates have no canvas edges and aren't shared via Yjs. */
-export const MIN_ZOOM = 0.25;
+export const MIN_ZOOM = 0.01;
 export const MAX_ZOOM = 2.5;
-const zoomStops = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5];
+const zoomStops = [0.01, 0.02, 0.05, 0.1, 0.15, 0.2, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5];
 export type Point = { x: number; y: number };
 export type Camera = Point & { zoom: number };
 export type Rect = Point & { width: number; height: number };
