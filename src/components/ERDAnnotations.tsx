@@ -3,10 +3,12 @@ import * as Y from "yjs";
 import { Box, CircleDot, Code2, FileText, GitBranch, ImagePlus, Trash2, Waypoints } from "lucide-react";
 import { createId } from "../id";
 import { optimizeDiagramImage, MAX_DIAGRAM_IMAGE_CHARS, MAX_DIAGRAM_IMAGES } from "../erd/imageFiles";
+import { ensureRichFragment, jsonFromFragment, type RichNode } from "../erd/richSchema";
+import { RichTextInspector, RichTextPreview } from "./ERDRichText";
 
 type Value = Y.Map<unknown>;
 export type Kind = "note" | "api" | "boundary" | "control" | "entity" | "image";
-export type Annotation = { id: string; kind: Kind; x: number; y: number; w: number; h: number; title: string; body: string; method: string; path: string; imageData?: string };
+export type Annotation = { id: string; kind: Kind; x: number; y: number; w: number; h: number; title: string; body: string; method: string; path: string; imageData?: string; richDoc?:RichNode };
 export type ArchitectureLink = { id: string; from: string; to: string; fromColumn?:string; toColumn?:string; label: string };
 export type TableReference = { id: string; name: string; x: number; y: number; w:number; h:number; columns: { id: string; name: string }[] };
 const methods = ["GET","POST","PUT","PATCH","DELETE","HEAD","OPTIONS"];
@@ -43,7 +45,9 @@ function readNode(id: string, v: Value): Annotation {
     x: Number(v.get("x") ?? 120), y: Number(v.get("y") ?? 120), w: Number(v.get("w") ?? 255), h: Number(v.get("h") ?? 165),
     title: readText(v.get("title")), body: readText(v.get("body")),
     method: String(v.get("method") ?? "GET"), path: readText(v.get("path")),
-    imageData: kind === "image" ? String(v.get("imageData") ?? "") : undefined };
+    imageData: kind === "image" ? String(v.get("imageData") ?? "") : undefined,
+    richDoc:kind==="note" && v.get("richBody") instanceof Y.XmlFragment
+      ? jsonFromFragment(v.get("richBody") as Y.XmlFragment) : undefined };
 }
 function readLink(id: string, v: Value): ArchitectureLink {
   return { id, from: String(v.get("from") ?? ""), to: String(v.get("to") ?? ""),
@@ -100,7 +104,11 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
   const choices = [...tables.map(t=>({id:t.id,name:"Table: "+t.name})),
     ...data.items.map(n=>({id:n.id,name:n.kind.toUpperCase()+": "+n.title}))];
   function clearSelection() { setSelected(null); setSelectedLine(null); }
-  function pickNode(id:string) { setSelected(id); setSelectedLine(null); deselectRelational(); }
+  function pickNode(id:string) {
+    const v=nodes.get(id);
+    if(v?.get("kind")==="note") ensureRichFragment(v);
+    setSelected(id); setSelectedLine(null); deselectRelational();
+  }
   function pickLine(id:string) { setSelectedLine(id); setSelected(null); deselectRelational(); }
   function add(kind:Kind) {
     const id=createId(), value=new Y.Map<unknown>(), title=new Y.Text(), body=new Y.Text(), path=new Y.Text();
@@ -108,6 +116,7 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
     if(kind==="api") path.insert(0,"/api/example");
     value.set("kind",kind); value.set("title",title); value.set("body",body);
     value.set("path",path); value.set("method","GET");
+    if(kind==="note")value.set("richBody",new Y.XmlFragment());
     const center = getCenter();
     value.set("x",center.x-130+(data.items.length%3)*24);
     value.set("y",center.y-85+(data.items.length%3)*24);
@@ -240,7 +249,14 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
        style={{left:n.x,top:n.y,width:n.w,height:n.h}} onClick={e=>{e.stopPropagation();pickNode(n.id);}}>
       <header onPointerDown={e=>pointerDown(e,n,"move")} onPointerMove={pointerMove}
         onPointerUp={()=>{drag.current=null;}} onPointerCancel={()=>{drag.current=null;}}>
-        <span>{n.kind==="note"?"TEXT BOX":n.kind==="api"?"API":n.kind==="image"?"PICTURE":"«"+n.kind+"»"}</span>
+        <span className="erd-card-heading">
+          {n.kind==="note"?<FileText size={15}/>:
+            n.kind==="image"?<ImagePlus size={15}/>:
+            n.kind==="api"?<Code2 size={15}/>:
+            n.kind==="boundary"?<Box size={15}/>:
+            n.kind==="control"?<GitBranch size={15}/>:<CircleDot size={15}/>}
+          <strong title={n.title}>{n.title||"Untitled"}</strong>
+        </span>
         <span className="erd-drag-grip" aria-hidden="true">⋮⋮</span>
       </header>
       <div className="erd-architecture-content">
@@ -248,8 +264,10 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
           alt={n.title || "Diagram picture"} draggable={false} />}
         {["boundary","control","entity"].includes(n.kind)&&<div className="erd-uml-symbol">{symbol(n.kind)}</div>}
         {n.kind==="api"&&<div className="erd-api-route"><b>{n.method}</b><code>{n.path}</code></div>}
-        <strong>{n.title}</strong>
-        {n.body?<p>{n.body}</p>:n.kind==="note"?<p className="erd-placeholder">Select to write a note...</p>:null}
+        {n.kind==="note" ? (
+          n.richDoc ? <RichTextPreview content={n.richDoc}/> :
+          n.body ? <p>{n.body}</p> : <p className="erd-placeholder">Select to write a note...</p>
+        ) : n.body ? <p>{n.body}</p> : null}
       </div>
       <button className="erd-resize-grip" type="button" aria-label={"Resize "+n.title}
         onPointerDown={e=>pointerDown(e,n,"resize")} onPointerMove={pointerMove}
@@ -272,9 +290,14 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
     {active.kind==="image" && <button type="button" onClick={() => chooseImage(active.id)}>
       <ImagePlus size={14}/> Replace picture
     </button>}
-    <label>{active.kind==="note"?"Text":active.kind==="image"?"Caption / description":"Notes / responsibilities"}
-      <textarea aria-label="Architecture element notes" rows={6} maxLength={5000} value={active.body}
-        onChange={e=>field(active.id,"body",e.target.value)}/></label>
+    {active.kind==="note" ? (
+      <RichTextInspector key={active.id} node={nodes.get(active.id)!}/>
+    ) : (
+      <label>{active.kind==="image"?"Caption / description":"Notes / responsibilities"}
+        <textarea aria-label="Architecture element notes" rows={6} maxLength={5000} value={active.body}
+          onChange={e=>field(active.id,"body",e.target.value)}/>
+      </label>
+    )}
     <button className="erd-danger" onClick={()=>deleteNode(active.id)}><Trash2 size={14}/> Delete element</button>
   </section>:activeLine?<section className="erd-architecture-inspector">
     <h3>Architecture connection</h3>
