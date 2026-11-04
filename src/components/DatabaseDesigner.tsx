@@ -407,35 +407,70 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
     }
   }
   return (
-    <div className="erd-planner">
-      <div className="erd-toolbar">
-        <span><Database size={17} /> Database design</span>
-        <label className="erd-dialect-control">SQL target
-          <select aria-label="Database SQL dialect" value={dialect} onChange={(e) => {
-            const next = e.target.value as Dialect;
-            settings.set("dialect", next);
-            setFeedback(next === "db2i" ? "IBM i Db2 enabled. Review any existing PostgreSQL-specific column types before SQL export." : "");
-          }}>
-            <option value="postgres">PostgreSQL</option>
-            <option value="db2i">IBM i Db2</option>
-          </select>
-        </label>
-        <button onClick={addTable}><Plus size={15} /> Table</button>
-        <button onClick={addRelation}><Link2 size={15} /> Relationship</button>
-        {annotations.toolbar}
-        <button onClick={exportJSON}><Download size={15} /> JSON</button>
-        <button onClick={exportDDL}>
-          <Download size={15} /> {dialect === "db2i" ? "IBM i Db2 SQL" : "PostgreSQL SQL"}
-        </button>
-        <div className="erd-zoom-controls" role="group" aria-label="Diagram zoom">
-          <button type="button" aria-label="Zoom out" title="Zoom out" disabled={camera.zoom <= MIN_ZOOM}
-            onClick={() => zoomTo(stepZoom(cameraRef.current.zoom,-1))}><Minus size={15}/></button>
-          <output aria-live="polite" aria-label="Current zoom">{Math.round(camera.zoom*100)}%</output>
-          <button type="button" aria-label="Zoom in" title="Zoom in" disabled={camera.zoom >= MAX_ZOOM}
-            onClick={() => zoomTo(stepZoom(cameraRef.current.zoom,1))}><Plus size={15}/></button>
-          <button type="button" title="Show all diagram elements" aria-label="Fit diagram to view"
-            onClick={fitToContent}><Scan size={15}/> Fit</button>
-          <button type="button" title="Reset to 100% zoom" onClick={() => zoomTo(1)}>100%</button>
+    <div ref={plannerRef} className={focusMode ? "erd-planner erd-focus-mode" : "erd-planner"}>
+      <div className="erd-toolbar" role="toolbar" aria-label="Diagram editor">
+        <div className="erd-toolbar-document" title={title}>
+          <Database size={18}/><strong>{title || "Database design"}</strong>
+        </div>
+        <div className="erd-toolbar-actions" role="group" aria-label="Create diagram elements">
+          <button className="erd-action-button" type="button" onClick={addTable} title="Add table" aria-label="Add table">
+            <Table2 size={17}/><span className="erd-action-label">Table</span>
+          </button>
+          <button className="erd-action-button" type="button" onClick={addRelation} title="Add foreign-key relationship"
+            aria-label="Add foreign-key relationship">
+            <Link2 size={17}/><span className="erd-action-label">Relation</span>
+          </button>
+          {annotations.toolbar}
+        </div>
+        <div className="erd-toolbar-options">
+          <details className="erd-toolbar-menu" onKeyDown={e=>{if(e.key==="Escape")e.currentTarget.open=false;}}>
+            <summary aria-label="More diagram elements" title="More diagram elements">
+              <Shapes size={17}/><span className="erd-option-label">More</span><ChevronDown size={12}/>
+            </summary>
+            <div className="erd-toolbar-menu-panel" onClick={e=>{
+              if ((e.target as Element).closest("button"))
+                (e.currentTarget.parentElement as HTMLDetailsElement).open=false;
+            }}>
+              {annotations.extraToolbar}
+            </div>
+          </details>
+          <label className="erd-dialect-control" title="SQL target">
+            <span className="erd-visually-hidden">SQL target</span>
+            <select aria-label="Database SQL dialect" value={dialect} onChange={(e)=>{
+              const next=e.target.value as Dialect;
+              settings.set("dialect",next);
+              setFeedback(next==="db2i"
+                ? "IBM i Db2 enabled. Review PostgreSQL-specific types before exporting SQL." : "");
+            }}>
+              <option value="postgres">PostgreSQL</option>
+              <option value="db2i">IBM i Db2</option>
+            </select>
+          </label>
+          <details className="erd-toolbar-menu" onKeyDown={e=>{if(e.key==="Escape")e.currentTarget.open=false;}}>
+            <summary aria-label="Export diagram" title="Export diagram">
+              <Download size={17}/><span className="erd-option-label">Export</span><ChevronDown size={12}/>
+            </summary>
+            <div className="erd-toolbar-menu-panel erd-toolbar-export" onClick={e=>{
+              if ((e.target as Element).closest("button"))
+                (e.currentTarget.parentElement as HTMLDetailsElement).open=false;
+            }}>
+              <button type="button" onClick={exportJSON}><Download size={15}/> Noteselot JSON</button>
+              <button type="button" onClick={exportDDL}>
+                <Database size={15}/> {dialect==="db2i" ? "IBM i Db2 SQL" : "PostgreSQL SQL"}
+              </button>
+            </div>
+          </details>
+          <button className="erd-icon-control" type="button" aria-label={inspectorOpen?"Hide properties":"Show properties"}
+            title={inspectorOpen?"Hide properties":"Show properties"} aria-pressed={inspectorOpen}
+            onClick={()=>setInspectorOpen(v=>!v)}>
+            {inspectorOpen?<PanelRightClose size={18}/>:<PanelRightOpen size={18}/>}
+          </button>
+          <button className="erd-icon-control" type="button"
+            aria-label={focusMode?"Exit full screen":"Open full screen"}
+            title={focusMode?"Exit full screen (Esc)":"Open full screen"} aria-pressed={focusMode}
+            onClick={toggleFocusMode}>
+            {focusMode?<Minimize2 size={18}/>:<Maximize2 size={18}/>}
+          </button>
         </div>
       </div>
       {feedback && <p className="erd-feedback" role="status">{feedback}</p>}
@@ -520,7 +555,19 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
             )}
           </div>
           <div className="erd-pan-hint" aria-hidden="true">Drag empty space to pan · Wheel to pan · Ctrl/Cmd + wheel to zoom</div>
+          <div className="erd-zoom-controls" role="group" aria-label="Diagram zoom">
+            <button type="button" aria-label="Zoom out" title="Zoom out" disabled={camera.zoom <= MIN_ZOOM}
+              onClick={() => zoomTo(stepZoom(cameraRef.current.zoom,-1))}><Minus size={16}/></button>
+            <output aria-live="off" aria-label="Current zoom">{Math.round(camera.zoom*100)}%</output>
+            <button type="button" aria-label="Zoom in" title="Zoom in" disabled={camera.zoom >= MAX_ZOOM}
+              onClick={() => zoomTo(stepZoom(cameraRef.current.zoom,1))}><Plus size={16}/></button>
+            <button type="button" title="Fit diagram to view" aria-label="Fit diagram to view"
+              onClick={fitToContent}><Scan size={16}/><span>Fit</span></button>
+            <button type="button" title="Reset to 100% zoom" aria-label="Reset zoom to 100%"
+              onClick={() => zoomTo(1)}>100%</button>
+          </div>
         </div>
+        {inspectorOpen && (<>
         <div role="separator" aria-orientation="vertical" aria-label="Resize properties panel" tabIndex={0}
           className="erd-inspector-resizer"
           onKeyDown={e=>{
@@ -682,6 +729,7 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
             </>
           )}
         </aside>
+        </>)}
       </div>
       <datalist id="erd-sql-type-options">
         {dataTypes[dialect].map((type) => <option key={type} value={type} />)}
