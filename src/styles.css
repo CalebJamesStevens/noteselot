@@ -2550,3 +2550,337 @@ form {
   .erd-inspector { flex: 0 0 auto; width: 100% !important; max-height: 560px; border-left: 0; border-top: 1px solid var(--line); }
   .erd-layout > .erd-scroll { flex: 0 0 auto; height: 470px; }
 }
+
+
+/* Compact Noteselot diagram workspace: free the canvas from app chrome. */
+.sidebar-compact-toggle {
+  position: absolute;
+  top: 9px;
+  right: 7px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.sidebar-compact-toggle:hover, .sidebar-compact-toggle:focus-visible {
+  color: var(--text);
+  background: var(--raised);
+  border-color: var(--line);
+}
+@media (min-width: 701px) {
+  .app-shell.sidebar-minimized .sidebar {
+    width: 53px;
+    padding: 12px 5px;
+    align-items: center;
+  }
+  .app-shell.sidebar-minimized .sidebar > :not(.sidebar-compact-toggle) { display: none; }
+  .app-shell.sidebar-minimized .sidebar-compact-toggle {
+    position: static;
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    color: var(--text);
+    border-color: var(--line);
+  }
+  .app-shell.sidebar-minimized .main {
+    margin-left: 53px;
+    width: calc(100% - 53px);
+  }
+}
+
+/* Only the database designer gets the short document heading. Regular notes remain unchanged. */
+.erd-workspace .workspace-topbar { height: 50px; min-height: 50px; padding-inline: 14px; }
+.erd-workspace .workspace-body { min-height: 0; height: calc(100dvh - 50px); }
+.erd-workspace .document-area { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.erd-workspace .document-heading {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: none;
+  min-height: 52px;
+  padding: 9px 16px;
+  margin: 0;
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--line);
+}
+.erd-workspace .document-kicker { display: none; }
+.erd-workspace .document-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  max-width: 760px;
+  height: auto;
+  font-size: 19px;
+  line-height: 28px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+.erd-workspace .document-meta {
+  display: flex;
+  flex: 0 0 auto;
+  margin: 0 0 0 auto;
+  min-height: 0;
+  gap: 4px;
+}
+.erd-workspace .document-meta > span { display: none; }
+.erd-workspace .collaborators { margin: 0; }
+.erd-workspace .erd-planner { flex: 1 1 auto; min-height: 0; height: auto; }
+
+/* A single efficient toolbar, with primary tools always visible and less common tools in menus. */
+.erd-planner .erd-toolbar {
+  position: relative;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  min-width: 0;
+  min-height: 48px;
+  padding: 6px 10px;
+  background: var(--sidebar);
+  border-top: 0;
+  border-bottom: 1px solid var(--line);
+}
+.erd-toolbar-document {
+  display: flex;
+  flex: 0 1 174px;
+  align-items: center;
+  gap: 7px;
+  min-width: 35px;
+  overflow: hidden;
+  color: var(--text);
+}
+.erd-toolbar-document svg { flex: 0 0 auto; color: var(--accent); }
+.erd-toolbar-document strong {
+  display: block;
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.erd-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.erd-toolbar-actions::-webkit-scrollbar { display: none; }
+.erd-toolbar-options { display: flex; flex: 0 0 auto; align-items: center; gap: 4px; margin-left: auto; }
+.erd-planner .erd-toolbar button,
+.erd-planner .erd-toolbar summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 33px;
+  min-width: 32px;
+  flex: 0 0 auto;
+  padding: 6px 7px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.erd-planner .erd-toolbar button:hover,
+.erd-planner .erd-toolbar button:focus-visible,
+.erd-planner .erd-toolbar summary:hover,
+.erd-planner .erd-toolbar summary:focus-visible,
+.erd-planner .erd-toolbar button[aria-pressed="true"] {
+  background: var(--raised);
+  border-color: var(--line);
+}
+.erd-planner .erd-toolbar .erd-action-label { display: none; }
+.erd-toolbar-menu { position: relative; flex: 0 0 auto; }
+.erd-toolbar-menu > summary { list-style: none; }
+.erd-toolbar-menu > summary::-webkit-details-marker { display: none; }
+.erd-toolbar-menu[open] > summary { background: var(--raised); border-color: var(--line); }
+.erd-toolbar-menu-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: absolute;
+  z-index: 70;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 192px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--sidebar);
+  box-shadow: var(--shadow);
+}
+.erd-planner .erd-toolbar-menu-panel button {
+  display: flex;
+  justify-content: flex-start;
+  width: 100%;
+  height: auto;
+  min-height: 34px;
+  padding: 8px 10px;
+  gap: 9px;
+  text-align: left;
+}
+.erd-toolbar-options .erd-dialect-control { margin: 0; }
+.erd-toolbar-options .erd-dialect-control select {
+  min-width: 102px;
+  width: auto;
+  max-width: 128px;
+  height: 32px;
+  padding: 4px 5px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 11px;
+}
+.erd-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.erd-export-dialect {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 8px 10px;
+  color: var(--muted);
+  font-size: 11px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 3px;
+}
+.erd-export-dialect select {
+  width: 100%;
+  padding: 7px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+/* Floating controls keep zoom close to the canvas without taking another row. */
+.erd-planner .erd-scroll { position: relative; min-height: 0; }
+.erd-planner .erd-zoom-controls {
+  position: absolute;
+  z-index: 8;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--sidebar);
+  box-shadow: var(--shadow);
+  white-space: nowrap;
+}
+.erd-planner .erd-zoom-controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 31px;
+  min-width: 31px;
+  padding: 4px 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text);
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+}
+.erd-planner .erd-zoom-controls button:hover,
+.erd-planner .erd-zoom-controls button:focus-visible { border-color: var(--line); background: var(--raised); }
+.erd-planner .erd-zoom-controls output { min-width: 43px; font-size: 12px; text-align: center; color: var(--text); }
+.erd-planner .erd-pan-hint { bottom: 16px; left: 10px; font-size: 9px; }
+
+/* A native-browser fullscreen session where allowed, otherwise a fixed viewport overlay. */
+.erd-planner.erd-focus-mode, .erd-planner.erd-focus-mode:fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  width: 100vw;
+  height: 100dvh;
+  min-height: 0;
+  margin: 0;
+  background: var(--bg);
+  box-shadow: none;
+}
+.erd-planner.erd-focus-mode::backdrop { background: var(--bg); }
+.erd-planner.erd-focus-mode .erd-toolbar { flex: 0 0 48px; }
+.erd-planner.erd-focus-mode .erd-layout { flex: 1 1 auto; min-height: 0; }
+
+/* On laptop-sized windows, inspector floats over the map so it can be hidden without reflowing the diagram. */
+@media (max-width: 1600px) {
+  .erd-planner .erd-layout { position: relative; }
+  .erd-planner .erd-inspector {
+    position: absolute;
+    z-index: 11;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    max-width: calc(100% - 56px);
+    background: var(--sidebar);
+    border-left: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+  .erd-planner .erd-inspector-resizer {
+    position: absolute;
+    z-index: 12;
+    top: 0;
+    bottom: 0;
+    height: auto;
+    background: var(--line);
+  }
+  .erd-planner .erd-layout > .erd-scroll { flex: 1 1 auto; width: 100%; }
+}
+@media (max-width: 1300px) {
+  .erd-toolbar-document { flex-basis: 36px; }
+  .erd-toolbar-document strong { display: none; }
+  .erd-planner .erd-pan-hint { display: none; }
+}
+@media (max-width: 920px) {
+  .erd-workspace .document-heading { padding: 8px 11px; min-height: 48px; }
+  .erd-workspace .document-title { font-size: 16px; }
+  .erd-workspace .document-meta .collaborators > span:last-child { display: none; }
+  .erd-planner .erd-toolbar { gap: 3px; padding: 5px 6px; }
+  .erd-toolbar-options { gap: 1px; }
+  .erd-planner .erd-toolbar .erd-option-label { display: none; }
+  .erd-toolbar-options .erd-dialect-control { display: none; }
+  .erd-toolbar-menu > summary svg:last-child { display: none; }
+}
+@media (max-width: 700px) {
+  .sidebar-compact-toggle { display: none; }
+  .erd-workspace .workspace-topbar { height: 47px; min-height: 47px; }
+  .erd-workspace .workspace-body { height: calc(100dvh - 47px); }
+  .erd-workspace .document-heading { min-height: 45px; padding: 7px 10px; }
+  .erd-workspace .document-title { font-size: 15px; }
+  .erd-workspace .document-meta { display: none; }
+  .erd-planner .erd-layout { flex-direction: row; }
+  .erd-planner .erd-layout > .erd-scroll { flex: 1 1 auto; height: auto; min-height: 0; }
+  .erd-planner .erd-inspector { max-width: calc(100% - 36px); max-height: none; width: 380px; border-top: 0; }
+  .erd-planner .erd-inspector-resizer { display: none; }
+  .erd-planner .erd-zoom-controls { bottom: 10px; }
+}
+@media (min-width: 1750px) {
+  .erd-planner .erd-toolbar .erd-action-label { display: inline; }
+}
