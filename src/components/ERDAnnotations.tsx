@@ -66,7 +66,8 @@ function center(id: string, tables: TableReference[], nodes: Annotation[]) {
   return t ? { x:t.x+118, y:t.y+(36+t.columns.length*29)/2, w:236 } : null;
 }
 export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selectedTableId: string | null,
-  deselectRelational: () => void, zoom = 1, getCenter: () => {x:number;y:number} = () => ({x:300,y:200})) {
+  deselectRelational: () => void, zoom = 1, getCenter: () => {x:number;y:number} = () => ({x:300,y:200}),
+  pointFromViewport: (x:number,y:number) => {x:number;y:number} = (x,y) => ({x:x/zoom,y:y/zoom})) {
   const nodes = useMemo(() => doc.getMap<Value>("erd-annotations"), [doc]);
   const connectors = useMemo(() => doc.getMap<Value>("erd-architecture-links"), [doc]);
   const read = () => ({ items: Array.from(nodes.entries()).map(([id,v]) => readNode(id,v)),
@@ -143,7 +144,7 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
     const file = Array.from(e.dataTransfer.files).find(f => f.type.startsWith("image/"));
     if (!file) { setFeedback("Drop a PNG, JPEG, or WebP picture."); return; }
     const box = e.currentTarget.getBoundingClientRect();
-    void uploadImage(file, null, {x:(e.clientX-box.left)/zoom,y:(e.clientY-box.top)/zoom});
+    void uploadImage(file, null, pointFromViewport(e.clientX-box.left,e.clientY-box.top));
   }
   function dragOverImage(e: DragEvent<HTMLElement>) {
     if (Array.from(e.dataTransfer.types).includes("Files")) e.preventDefault();
