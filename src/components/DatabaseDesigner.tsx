@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import * as Y from "yjs";
-import { Database, Download, Link2, Minus, Plus, Scan, Trash2 } from "lucide-react";
+import { ChevronDown, Database, Download, Link2, Maximize2, Minimize2, Minus, PanelRightClose, PanelRightOpen, Plus, Scan, Shapes, Table2, Trash2 } from "lucide-react";
 import { createId } from "../id";
 import { download } from "../api";
 import { useERDAnnotations } from "./ERDAnnotations";
@@ -127,7 +127,51 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
     (x,y) => screenToWorld(cameraRef.current,{x,y}));
   const drag = useRef<{ id: string; action:"move"|"resize"; x: number; y: number; w:number; h:number; pointerX: number; pointerY: number } | null>(null);
   const [inspectorWidth,setInspectorWidth] = useState(380);
+  const [inspectorOpen,setInspectorOpen] = useState(() =>
+    typeof window === "undefined" || window.innerWidth > 1550);
+  const [focusMode,setFocusMode] = useState(false);
+  const plannerRef = useRef<HTMLDivElement>(null);
   const inspectorWidthRef = useRef<{start:number;width:number;id:number}|null>(null);
+  useEffect(() => {
+    if(selected || selectedRelation || annotations.selectedId || annotations.selectedLineId)
+      setInspectorOpen(true);
+  }, [selected,selectedRelation,annotations.selectedId,annotations.selectedLineId]);
+  useEffect(() => {
+    function fullscreenChanged() {
+      if (!document.fullscreenElement) setFocusMode(false);
+    }
+    document.addEventListener("fullscreenchange", fullscreenChanged);
+    return () => document.removeEventListener("fullscreenchange", fullscreenChanged);
+  }, []);
+  useEffect(() => {
+    if (!focusMode) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    function onKeyDown(event: KeyboardEvent) {
+      if(event.key === "Escape") {
+        setFocusMode(false);
+        if (document.fullscreenElement === plannerRef.current)
+          void document.exitFullscreen().catch(() => {});
+      }
+    }
+    window.addEventListener("keydown",onKeyDown);
+    return () => {
+      document.body.style.overflow = previous;
+      window.removeEventListener("keydown",onKeyDown);
+    };
+  }, [focusMode]);
+  function toggleFocusMode() {
+    if (focusMode) {
+      setFocusMode(false);
+      if (document.fullscreenElement === plannerRef.current)
+        void document.exitFullscreen().catch(() => {});
+    } else {
+      setFocusMode(true);
+      // True browser fullscreen when permitted; the fixed overlay remains a fallback.
+      const request = plannerRef.current?.requestFullscreen?.();
+      if (request) void request.catch(() => {});
+    }
+  }
   useEffect(() => {
     const update = () => setModel(snapshot());
     tableStore.observeDeep(update);
