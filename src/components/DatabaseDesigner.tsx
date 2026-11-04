@@ -285,6 +285,13 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
         if ((relation.get("fromTable") === tableId && relation.get("fromColumn") === columnId) ||
             (relation.get("toTable") === tableId && relation.get("toColumn") === columnId)) relationStore.delete(id);
       }
+      const connectors=doc.getMap<MapValue>("erd-architecture-links");
+      for(const link of connectors.values()){
+        if(link.get("from")===tableId && link.get("fromColumn")===columnId)
+          link.delete("fromColumn");
+        if(link.get("to")===tableId && link.get("toColumn")===columnId)
+          link.delete("toColumn");
+      }
     });
   }
   function removeTable(id: string) {
