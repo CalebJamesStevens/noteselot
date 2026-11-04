@@ -51,7 +51,8 @@ function readNode(id: string, v: Value): Annotation {
 }
 function readLink(id: string, v: Value): ArchitectureLink {
   return { id, from: String(v.get("from") ?? ""), to: String(v.get("to") ?? ""),
-    fromColumn: String(v.get("fromColumn") ?? ""), toColumn:String(v.get("toColumn") ?? ""),
+    fromColumn:v.get("fromColumn") ? String(v.get("fromColumn")) : undefined,
+    toColumn:v.get("toColumn") ? String(v.get("toColumn")) : undefined,
     label: readText(v.get("label")) };
 }
 /** Standard BCE robustness symbols: boundary T-bar, control arrow, entity baseline. */
