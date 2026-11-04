@@ -104,6 +104,7 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
   const canvasRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<{id:number;screenX:number;screenY:number;x:number;y:number}|null>(null);
   const spaceHeld = useRef(false);
+  const canvasHovered = useRef(false);
   const [isPanning, setIsPanning] = useState(false);
   function updateCamera(next:Camera) {
     cameraRef.current = next;
@@ -209,7 +210,10 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
     const typing=(target:EventTarget|null) =>
       target instanceof Element && !!target.closest("input,textarea,select,[contenteditable=true]");
     function keydown(event:KeyboardEvent) {
-      if (event.code === "Space" && !typing(event.target)) spaceHeld.current=true;
+      if (event.code === "Space" && !typing(event.target)) {
+        spaceHeld.current=true;
+        if (canvasHovered.current) event.preventDefault();
+      }
     }
     function keyup(event:KeyboardEvent) { if (event.code === "Space") spaceHeld.current=false; }
     function blur() { spaceHeld.current=false; }
@@ -365,6 +369,8 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
         <div className={isPanning ? "erd-scroll is-panning" : "erd-scroll"} ref={canvasRef}
           aria-label="Infinite diagram canvas, drag empty space to pan"
           onDragOver={annotations.dragOverImage} onDrop={annotations.dropImage}
+          onPointerEnter={() => {canvasHovered.current=true;}}
+          onPointerLeave={() => {canvasHovered.current=false;}}
           onPointerDownCapture={onPanCapture} onPointerDown={onBlankPan}
           onPointerMove={movePan} onPointerUp={endPan} onPointerCancel={endPan}
           style={{backgroundSize:`${22*camera.zoom}px ${22*camera.zoom}px`,
