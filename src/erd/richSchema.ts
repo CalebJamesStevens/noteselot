@@ -28,9 +28,7 @@ export const DiagramStyle = Mark.create({
   },
   parseHTML(){return [{tag:"span[data-erd-style]"}];},
   renderHTML({HTMLAttributes}) {
-    const color=validColor(HTMLAttributes.color), size=validSize(HTMLAttributes.fontSize);
-    const styles=[color && "color:"+color,size && "font-size:"+size].filter(Boolean).join(";");
-    return ["span",mergeAttributes({"data-erd-style":"",style:styles}),0];
+    return ["span",mergeAttributes({"data-erd-style":""},HTMLAttributes),0];
   },
 });
 
