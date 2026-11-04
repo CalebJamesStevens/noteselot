@@ -1,5 +1,6 @@
 import { z } from "zod";
 import * as Y from "yjs";
+import { validateRichDoc, fragmentFromRichDoc } from "../src/erd/richSchema.ts";
 
 const identifier = z.string().min(1).max(120).regex(/^[\w-]+$/);
 const name = z.string().min(1).max(200);
@@ -14,6 +15,8 @@ const column = z.object({
 }).strip();
 const table = z.object({
   id: identifier, name, x: coordinate, y: coordinate,
+  w: z.number().finite().min(190).max(2400).default(236),
+  h: z.number().finite().min(50).max(2400).default(100),
   columns: z.array(column).max(200),
   systemName: z.string().max(10).optional(),
 }).strip();
@@ -31,9 +34,11 @@ const annotation = z.object({
   title: text, body: text, method: z.enum(["GET","POST","PUT","PATCH","DELETE","HEAD","OPTIONS"]).default("GET"),
   path: z.string().max(240).default(""),
   imageData: z.string().max(220000).optional(),
+  richDoc: z.unknown().optional(),
 }).strip();
 const link = z.object({
   id: identifier, from: identifier, to: identifier, label: z.string().max(120),
+  fromColumn: identifier.optional(), toColumn: identifier.optional(),
 }).strip();
 
 /** Noteselot-native .erd.json exports only. Does not accept the unrelated dineug format. */
@@ -85,6 +90,10 @@ export function validateDesign(input) {
   for (const ann of design.annotations) {
     if (ann.kind === "image") validateEmbeddedImageData(ann.imageData);
     else if (ann.imageData !== undefined) throw new Error("Only picture elements may carry embedded image data.");
+    if (ann.richDoc !== undefined) {
+      if (ann.kind !== "note") throw new Error("Formatted content is only available on text boxes.");
+      validateRichDoc(ann.richDoc);
+    }
   }
   const nodes = new Set([...design.tables.map(t => t.id), ...design.annotations.map(n => n.id)]);
   if (nodes.size !== design.tables.length + design.annotations.length)
@@ -93,9 +102,14 @@ export function validateDesign(input) {
     if (!tables.get(rel.fromTable)?.has(rel.fromColumn) || !tables.get(rel.toTable)?.has(rel.toColumn))
       throw new Error("A database relationship refers to a missing table or column.");
   }
-  for (const l of design.architectureConnections)
+  for (const l of design.architectureConnections) {
     if (!nodes.has(l.from) || !nodes.has(l.to))
       throw new Error("An architecture connection refers to a missing diagram element.");
+    if (l.fromColumn && !tables.get(l.from)?.has(l.fromColumn))
+      throw new Error("An architecture connection has an invalid source table field.");
+    if (l.toColumn && !tables.get(l.to)?.has(l.toColumn))
+      throw new Error("An architecture connection has an invalid destination table field.");
+  }
   return design;
 }
 function mapOf(fields) {
@@ -119,7 +133,7 @@ export function buildImportedDesign(input) {
       const tables = doc.getMap("erd-tables");
       for (const table of design.tables) {
         const columns = new Y.Array();
-        const t = mapOf({name:table.name,x:table.x,y:table.y,systemName:table.systemName ?? ""});
+        const t = mapOf({name:table.name,x:table.x,y:table.y,w:table.w,h:table.h,systemName:table.systemName ?? ""});
         columns.push(table.columns.map(c => mapOf({
           id:c.id,name:c.name,type:c.type,primary:c.primary,nullable:c.nullable,
           systemName:c.systemName ?? "",ccsid:c.ccsid,
@@ -134,10 +148,12 @@ export function buildImportedDesign(input) {
         kind:n.kind,x:n.x,y:n.y,w:n.w,h:n.h,method:n.method,
         title:sharedText(n.title),body:sharedText(n.body),path:sharedText(n.path),
         imageData:n.kind === "image" ? n.imageData : undefined,
+        richBody:n.kind === "note" && n.richDoc !== undefined
+          ? fragmentFromRichDoc(n.richDoc) : undefined,
       }));
       const links = doc.getMap("erd-architecture-links");
       for (const l of design.architectureConnections) links.set(l.id,mapOf({
-        from:l.from,to:l.to,label:sharedText(l.label),
+        from:l.from,to:l.to,fromColumn:l.fromColumn,toColumn:l.toColumn,label:sharedText(l.label),
       }));
     });
     const search = [

@@ -149,3 +149,66 @@ test("infinite-canvas coordinates survive JSON import without artificial page li
   raw.tables[0].x = Infinity;
   assert.throws(() => validateDesign(raw), /valid Noteselot/);
 });
+
+
+test("resized tables and column-attached architecture links survive JSON import", () => {
+  const data = payload();
+  data.tables[0].w = 480;
+  data.tables[0].h = 270;
+  data.architectureConnections[0].toColumn = "c1";
+  const imported = buildImportedDesign(data);
+  const doc = new Y.Doc();
+  Y.applyUpdate(doc, imported.state);
+  assert.equal(doc.getMap("erd-tables").get("t1").get("w"),480);
+  assert.equal(doc.getMap("erd-tables").get("t1").get("h"),270);
+  assert.equal(doc.getMap("erd-architecture-links").get("l1").get("toColumn"),"c1");
+  doc.destroy();
+  data.architectureConnections[0].toColumn = "missing-field";
+  assert.throws(()=>validateDesign(data), /invalid destination table field/);
+});
+
+test("collaborative text-box formatting survives JSON export and import", async () => {
+  const { fragmentFromRichDoc, jsonFromFragment } = await import("../src/erd/richSchema.ts");
+  const data = payload();
+  const richDoc = {
+    type:"doc",
+    content:[{type:"paragraph",content:[
+      {type:"text",text:"Important",marks:[
+        {type:"bold"},
+        {type:"underline"},
+        {type:"diagramStyle",attrs:{fontSize:"20px",color:"#FF5500"}},
+      ]},
+      {type:"text",text:" notes"},
+    ]}],
+  };
+  data.annotations[0].kind = "note";
+  data.annotations[0].richDoc = richDoc;
+  data.annotations[0].body = "Important notes";
+  const native = fragmentFromRichDoc(richDoc);
+  assert.equal(native.length,1);
+  const state = buildImportedDesign(data);
+  const restored = new Y.Doc();
+  Y.applyUpdate(restored,state.state);
+  const note = restored.getMap("erd-annotations").get("a1");
+  assert.equal(note.get("body").toString(),"Important notes");
+  const formatted = jsonFromFragment(note.get("richBody"));
+  const marks=formatted.content[0].content[0].marks;
+  assert.ok(marks.some(m=>m.type==="bold"));
+  assert.ok(marks.some(m=>m.type==="underline"));
+  assert.ok(marks.some(m=>m.type==="diagramStyle"
+    && m.attrs.color==="#FF5500" && m.attrs.fontSize==="20px"));
+  restored.destroy();
+});
+
+test("invalid imported rich-text attributes and unsupported annotation formats are rejected", () => {
+  const data=payload();
+  data.annotations[0].kind="note";
+  data.annotations[0].richDoc={type:"doc",content:[{type:"paragraph",content:[
+    {type:"text",text:"bad",marks:[{type:"diagramStyle",attrs:{color:"url(javascript:alert(1))"}}]},
+  ]}]};
+  assert.throws(()=>validateDesign(data), /Invalid text color/);
+  data.annotations[0].richDoc={type:"doc",content:[{type:"paragraph",content:[
+    {type:"text",text:"too much",marks:[{type:"unknownCustomMark"}]},
+  ]}]};
+  assert.throws(()=>validateDesign(data), /Unsupported text formatting/);
+});

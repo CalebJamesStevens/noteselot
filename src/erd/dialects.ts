@@ -1,7 +1,7 @@
 export type Dialect = "postgres" | "db2i";
 export type Cardinality = "one" | "zero-one" | "many" | "zero-many";
 export type Column = { id: string; name: string; type: string; primary: boolean; nullable: boolean; systemName?: string; ccsid?: number };
-export type Table = { id: string; name: string; x: number; y: number; columns: Column[]; systemName?: string };
+export type Table = { id: string; name: string; x: number; y: number; w: number; h: number; columns: Column[]; systemName?: string };
 export type Relation = { id: string; fromTable: string; fromColumn: string; toTable: string; toColumn: string; fromCard: Cardinality; toCard: Cardinality };
 export type DesignOptions = { dialect?: Dialect; schema?: string };
 

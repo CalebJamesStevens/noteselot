@@ -70,6 +70,11 @@ export default function Workspace({
     [moving, setMoving] = useState(false);
   const { doc, provider } = connection;
   useEffect(() => {
+    const priorTitle = document.title;
+    document.title = (title.trim() || "Untitled") + " | Noteselot";
+    return () => { document.title = priorTitle; };
+  }, [title]);
+  useEffect(() => {
     const statusChange = ({ status }: { status: string }) =>
       setStatus(status === "connected" ? "connected" : "offline");
     const sync = () => {

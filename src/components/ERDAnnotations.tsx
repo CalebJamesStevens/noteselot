@@ -3,12 +3,14 @@ import * as Y from "yjs";
 import { Box, CircleDot, Code2, FileText, GitBranch, ImagePlus, Trash2, Waypoints } from "lucide-react";
 import { createId } from "../id";
 import { optimizeDiagramImage, MAX_DIAGRAM_IMAGE_CHARS, MAX_DIAGRAM_IMAGES } from "../erd/imageFiles";
+import { ensureRichFragment, jsonFromFragment, type RichNode } from "../erd/richSchema";
+import { RichTextInspector, RichTextPreview } from "./ERDRichText";
 
 type Value = Y.Map<unknown>;
 export type Kind = "note" | "api" | "boundary" | "control" | "entity" | "image";
-export type Annotation = { id: string; kind: Kind; x: number; y: number; w: number; h: number; title: string; body: string; method: string; path: string; imageData?: string };
-export type ArchitectureLink = { id: string; from: string; to: string; label: string };
-export type TableReference = { id: string; name: string; x: number; y: number; columns: { id: string; name: string }[] };
+export type Annotation = { id: string; kind: Kind; x: number; y: number; w: number; h: number; title: string; body: string; method: string; path: string; imageData?: string; richDoc?:RichNode };
+export type ArchitectureLink = { id: string; from: string; to: string; fromColumn?:string; toColumn?:string; label: string };
+export type TableReference = { id: string; name: string; x: number; y: number; w:number; h:number; columns: { id: string; name: string }[] };
 const methods = ["GET","POST","PUT","PATCH","DELETE","HEAD","OPTIONS"];
 const kinds: { kind: Kind; name: string; Icon: typeof FileText }[] = [
   { kind: "note", name: "Text box", Icon: FileText },
@@ -43,10 +45,15 @@ function readNode(id: string, v: Value): Annotation {
     x: Number(v.get("x") ?? 120), y: Number(v.get("y") ?? 120), w: Number(v.get("w") ?? 255), h: Number(v.get("h") ?? 165),
     title: readText(v.get("title")), body: readText(v.get("body")),
     method: String(v.get("method") ?? "GET"), path: readText(v.get("path")),
-    imageData: kind === "image" ? String(v.get("imageData") ?? "") : undefined };
+    imageData: kind === "image" ? String(v.get("imageData") ?? "") : undefined,
+    richDoc:kind==="note" && v.get("richBody") instanceof Y.XmlFragment
+      ? jsonFromFragment(v.get("richBody") as Y.XmlFragment) : undefined };
 }
 function readLink(id: string, v: Value): ArchitectureLink {
-  return { id, from: String(v.get("from") ?? ""), to: String(v.get("to") ?? ""), label: readText(v.get("label")) };
+  return { id, from: String(v.get("from") ?? ""), to: String(v.get("to") ?? ""),
+    fromColumn:v.get("fromColumn") ? String(v.get("fromColumn")) : undefined,
+    toColumn:v.get("toColumn") ? String(v.get("toColumn")) : undefined,
+    label: readText(v.get("label")) };
 }
 /** Standard BCE robustness symbols: boundary T-bar, control arrow, entity baseline. */
 function symbol(kind: Kind): ReactNode {
@@ -63,8 +70,20 @@ function center(id: string, tables: TableReference[], nodes: Annotation[]) {
   const n = nodes.find(x => x.id === id);
   if (n) return { x:n.x+n.w/2, y:n.y+n.h/2, w:n.w };
   const t = tables.find(x => x.id === id);
-  return t ? { x:t.x+118, y:t.y+(36+t.columns.length*29)/2, w:236 } : null;
+  return t ? { x:t.x+t.w/2, y:t.y+Math.max(t.h,36+t.columns.length*29)/2, w:t.w } : null;
 }
+function anchorPoint(id: string, columnId: string | undefined, right: boolean,
+  tables: TableReference[], nodes: Annotation[]) {
+  const t=tables.find(x=>x.id===id);
+  if (t && columnId) {
+    const idx=t.columns.findIndex(c=>c.id===columnId);
+    if (idx>=0) return {x:t.x+(right?t.w:0),y:t.y+36+idx*29+14.5};
+  }
+  const c=center(id,tables,nodes);
+  if(!c)return null;
+  return {x:c.x+(right?c.w/2:-c.w/2),y:c.y};
+}
+
 export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selectedTableId: string | null,
   deselectRelational: () => void, zoom = 1, getCenter: () => {x:number;y:number} = () => ({x:300,y:200}),
   pointFromViewport: (x:number,y:number) => {x:number;y:number} = (x,y) => ({x:x/zoom,y:y/zoom})) {
@@ -86,7 +105,11 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
   const choices = [...tables.map(t=>({id:t.id,name:"Table: "+t.name})),
     ...data.items.map(n=>({id:n.id,name:n.kind.toUpperCase()+": "+n.title}))];
   function clearSelection() { setSelected(null); setSelectedLine(null); }
-  function pickNode(id:string) { setSelected(id); setSelectedLine(null); deselectRelational(); }
+  function pickNode(id:string) {
+    const v=nodes.get(id);
+    if(v?.get("kind")==="note") ensureRichFragment(v);
+    setSelected(id); setSelectedLine(null); deselectRelational();
+  }
   function pickLine(id:string) { setSelectedLine(id); setSelected(null); deselectRelational(); }
   function add(kind:Kind) {
     const id=createId(), value=new Y.Map<unknown>(), title=new Y.Text(), body=new Y.Text(), path=new Y.Text();
@@ -94,6 +117,7 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
     if(kind==="api") path.insert(0,"/api/example");
     value.set("kind",kind); value.set("title",title); value.set("body",body);
     value.set("path",path); value.set("method","GET");
+    if(kind==="note")value.set("richBody",new Y.XmlFragment());
     const center = getCenter();
     value.set("x",center.x-130+(data.items.length%3)*24);
     value.set("y",center.y-85+(data.items.length%3)*24);
@@ -208,7 +232,10 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
       {data.lines.map(line=>{
         const a=center(line.from,tables,data.items),b=center(line.to,tables,data.items);
         if(!a||!b)return null;
-        const dir=b.x>=a.x?1:-1, p1={x:a.x+dir*a.w/2,y:a.y},p2={x:b.x-dir*b.w/2,y:b.y};
+        const dir=b.x>=a.x?1:-1;
+        const p1=anchorPoint(line.from,line.fromColumn,dir>0,tables,data.items);
+        const p2=anchorPoint(line.to,line.toColumn,dir<0,tables,data.items);
+        if(!p1||!p2)return null;
         const bend=Math.max(32,Math.abs(p2.x-p1.x)/2);
         const d="M "+p1.x+" "+p1.y+" C "+(p1.x+dir*bend)+" "+p1.y+", "+(p2.x-dir*bend)+" "+p2.y+", "+p2.x+" "+p2.y;
         return <g key={line.id} className={"erd-architecture-link"+(selectedLine===line.id?" active":"")}
@@ -223,7 +250,14 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
        style={{left:n.x,top:n.y,width:n.w,height:n.h}} onClick={e=>{e.stopPropagation();pickNode(n.id);}}>
       <header onPointerDown={e=>pointerDown(e,n,"move")} onPointerMove={pointerMove}
         onPointerUp={()=>{drag.current=null;}} onPointerCancel={()=>{drag.current=null;}}>
-        <span>{n.kind==="note"?"TEXT BOX":n.kind==="api"?"API":n.kind==="image"?"PICTURE":"«"+n.kind+"»"}</span>
+        <span className="erd-card-heading">
+          {n.kind==="note"?<FileText size={15}/>:
+            n.kind==="image"?<ImagePlus size={15}/>:
+            n.kind==="api"?<Code2 size={15}/>:
+            n.kind==="boundary"?<Box size={15}/>:
+            n.kind==="control"?<GitBranch size={15}/>:<CircleDot size={15}/>}
+          <strong title={n.title}>{n.title||"Untitled"}</strong>
+        </span>
         <span className="erd-drag-grip" aria-hidden="true">⋮⋮</span>
       </header>
       <div className="erd-architecture-content">
@@ -231,8 +265,10 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
           alt={n.title || "Diagram picture"} draggable={false} />}
         {["boundary","control","entity"].includes(n.kind)&&<div className="erd-uml-symbol">{symbol(n.kind)}</div>}
         {n.kind==="api"&&<div className="erd-api-route"><b>{n.method}</b><code>{n.path}</code></div>}
-        <strong>{n.title}</strong>
-        {n.body?<p>{n.body}</p>:n.kind==="note"?<p className="erd-placeholder">Select to write a note...</p>:null}
+        {n.kind==="note" ? (
+          n.richDoc ? <RichTextPreview content={n.richDoc}/> :
+          n.body ? <p>{n.body}</p> : <p className="erd-placeholder">Select to write a note...</p>
+        ) : n.body ? <p>{n.body}</p> : null}
       </div>
       <button className="erd-resize-grip" type="button" aria-label={"Resize "+n.title}
         onPointerDown={e=>pointerDown(e,n,"resize")} onPointerMove={pointerMove}
@@ -255,17 +291,42 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
     {active.kind==="image" && <button type="button" onClick={() => chooseImage(active.id)}>
       <ImagePlus size={14}/> Replace picture
     </button>}
-    <label>{active.kind==="note"?"Text":active.kind==="image"?"Caption / description":"Notes / responsibilities"}
-      <textarea aria-label="Architecture element notes" rows={6} maxLength={5000} value={active.body}
-        onChange={e=>field(active.id,"body",e.target.value)}/></label>
+    {active.kind==="note" ? (
+      <RichTextInspector key={active.id} node={nodes.get(active.id)!}/>
+    ) : (
+      <label>{active.kind==="image"?"Caption / description":"Notes / responsibilities"}
+        <textarea aria-label="Architecture element notes" rows={6} maxLength={5000} value={active.body}
+          onChange={e=>field(active.id,"body",e.target.value)}/>
+      </label>
+    )}
     <button className="erd-danger" onClick={()=>deleteNode(active.id)}><Trash2 size={14}/> Delete element</button>
   </section>:activeLine?<section className="erd-architecture-inspector">
     <h3>Architecture connection</h3>
     <p className="erd-hint">A visual connection for API flows and architecture. It does not generate a SQL foreign key.</p>
     {(["from","to"] as const).map(side=><label key={side}>{side==="from"?"From":"To"}
       <select aria-label={"Architecture connection "+side} value={activeLine[side]}
-        onChange={e=>connectors.get(activeLine.id)?.set(side,e.target.value)}>
-        {choices.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>)}
+        onChange={e=>{
+          const link=connectors.get(activeLine.id);
+          doc.transact(()=>{
+            link?.set(side,e.target.value);
+            link?.delete(side+"Column");
+          });
+        }}>
+        {choices.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
+      {tables.some(t=>t.id===activeLine[side]) && (
+        <select aria-label={"Architecture connection "+side+" table field"}
+          value={activeLine[side==="from"?"fromColumn":"toColumn"]||""}
+          onChange={e=>{
+            const link=connectors.get(activeLine.id);
+            if(e.target.value)link?.set(side+"Column",e.target.value);
+            else link?.delete(side+"Column");
+          }}>
+          <option value="">Whole table</option>
+          {tables.find(t=>t.id===activeLine[side])?.columns.map(col=>(
+            <option value={col.id} key={col.id}>{col.name}</option>
+          ))}
+        </select>
+      )}</label>)}
     <label>Label<input aria-label="Architecture connection label" maxLength={120} value={activeLine.label}
       onChange={e=>{const v=connectors.get(activeLine.id);if(v)editSharedText(v,"label",e.target.value);}}/></label>
     <button className="erd-danger" onClick={()=>{connectors.delete(activeLine.id);clearSelection();}}>

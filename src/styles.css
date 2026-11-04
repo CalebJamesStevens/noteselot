@@ -2454,3 +2454,99 @@ form {
 @media (max-width: 760px) {
   .erd-pan-hint { font-size: 9px; }
 }
+
+
+/* Resizable tables and properties panel */
+.erd-layout { display: flex; grid-template-columns: none; align-items: stretch; min-height: 0; }
+.erd-layout > .erd-scroll { flex: 1 1 auto; min-width: 0; }
+.erd-inspector {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 20px;
+  overflow: auto;
+}
+.erd-inspector-resizer {
+  width: 9px;
+  flex: 0 0 9px;
+  align-self: stretch;
+  cursor: col-resize;
+  background: var(--line);
+  opacity: 0.5;
+  touch-action: none;
+  outline-offset: 2px;
+}
+.erd-inspector-resizer:hover, .erd-inspector-resizer:focus-visible { background: var(--accent); opacity: 1; }
+.erd-table { box-sizing: border-box; }
+.erd-table-columns { max-height: calc(100% - 34px); overflow: auto; }
+.erd-table-resize-grip {
+  position: absolute;
+  z-index: 3;
+  right: 0;
+  bottom: 0;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  background: transparent;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+.erd-table-resize-grip::after {
+  content: "";
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid var(--accent);
+  border-bottom: 2px solid var(--accent);
+}
+.erd-table-size { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin-bottom: 14px; }
+.erd-table-size label { display: flex; flex-direction: column; gap: 5px; font-size: 11px; font-weight: 600; }
+
+/* Titles and matching type icons live in the heading, not repeated inside cards. */
+.erd-card-heading { display: inline-flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+.erd-card-heading strong { font-size: 12px; text-transform: none; letter-spacing: 0; font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.erd-architecture-card .erd-architecture-content > p { margin: 4px 0; }
+.erd-architecture-card.kind-note .erd-architecture-content { padding: 8px 12px; }
+.erd-architecture-card.kind-image .erd-architecture-content { gap: 4px; }
+.erd-architecture-card.kind-boundary .erd-architecture-content,
+.erd-architecture-card.kind-control .erd-architecture-content,
+.erd-architecture-card.kind-entity .erd-architecture-content { text-align: center; }
+
+/* Inline formatted text for collaborative ERD annotations. */
+.erd-rich-editor { min-width: 0; margin-top: 12px; }
+.erd-rich-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+.erd-rich-toolbar button { padding: 7px; }
+.erd-rich-toolbar button.active { color: var(--accent); border-color: var(--accent); background: var(--bg); }
+.erd-rich-toolbar label { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; }
+.erd-rich-toolbar select { width: auto; min-width: 76px; padding: 5px; }
+.erd-rich-toolbar input[type=color] { width: 32px; height: 30px; padding: 2px; cursor: pointer; }
+.erd-rich-input {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--text);
+  min-height: 280px;
+  padding: 12px;
+  line-height: 1.5;
+  outline: none;
+  overflow-wrap: anywhere;
+}
+.erd-rich-input:focus { border-color: var(--accent); }
+.erd-rich-input > :first-child, .erd-rich-preview > :first-child { margin-top: 0; }
+.erd-rich-input > :last-child, .erd-rich-preview > :last-child { margin-bottom: 0; }
+.erd-rich-input p, .erd-rich-preview p { margin: 5px 0; white-space: pre-wrap; }
+.erd-rich-input ul, .erd-rich-preview ul { padding-left: 22px; list-style: disc; }
+.erd-rich-input ol, .erd-rich-preview ol { padding-left: 22px; list-style: decimal; }
+.erd-rich-preview { line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.erd-rich-preview .erd-rich-heading { display: block; font-size: 1.1em; }
+.erd-rich-preview p { font-size: inherit; }
+.erd-rich-preview span { white-space: pre-wrap; }
+@media (max-width: 760px) {
+  .erd-layout { flex-direction: column; }
+  .erd-inspector-resizer { display: none; }
+  .erd-inspector { flex: 0 0 auto; width: 100% !important; max-height: 560px; border-left: 0; border-top: 1px solid var(--line); }
+  .erd-layout > .erd-scroll { flex: 0 0 auto; height: 470px; }
+}
