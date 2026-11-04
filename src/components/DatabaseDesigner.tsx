@@ -1,10 +1,10 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import * as Y from "yjs";
 import { Database, Download, Link2, Minus, Plus, Scan, Trash2 } from "lucide-react";
 import { createId } from "../id";
 import { download } from "../api";
 import { useERDAnnotations } from "./ERDAnnotations";
-import { ERD_WIDTH, ERD_HEIGHT, anchoredScroll, clampZoom, fitZoom, stepZoom } from "../erd/viewport";
+import { fitCamera, panCamera, screenToWorld, stepZoom, zoomAround, type Camera } from "../erd/viewport";
 
 import { 
   dataTypes, db2iFieldPresets, defaultColumnType, generateSQL,
@@ -99,14 +99,28 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
     schema: String(settings.get("schema") ?? ""),
   });
   const [model, setModel] = useState(snapshot);
-  const [zoom, setZoom] = useState(1);
-  const zoomRef = useRef(1);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const pendingScrollRef = useRef<{left:number;top:number}|null>(null);
+  const [camera, setCamera] = useState<Camera>({x:32,y:32,zoom:1});
+  const cameraRef = useRef(camera);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const panRef = useRef<{id:number;screenX:number;screenY:number;x:number;y:number}|null>(null);
+  const spaceHeld = useRef(false);
+  const [isPanning, setIsPanning] = useState(false);
+  function updateCamera(next:Camera) {
+    cameraRef.current = next;
+    setCamera(next);
+  }
+  function centerWorld() {
+    const area = canvasRef.current;
+    return screenToWorld(cameraRef.current,{
+      x:area ? area.clientWidth/2 : 420,
+      y:area ? area.clientHeight/2 : 260,
+    });
+  }
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedRelation, setSelectedRelation] = useState<string | null>(null);
   const [feedback, setFeedback] = useState("");
-  const annotations = useERDAnnotations(doc, model.tables, selected, () => { setSelected(null); setSelectedRelation(null); }, zoom);
+  const annotations = useERDAnnotations(doc, model.tables, selected,
+    () => { setSelected(null); setSelectedRelation(null); }, camera.zoom, centerWorld);
   const drag = useRef<{ id: string; x: number; y: number; pointerX: number; pointerY: number } | null>(null);
   useEffect(() => {
     const update = () => setModel(snapshot());
@@ -119,29 +133,14 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
       settings.unobserveDeep(update);
     };
   }, [tableStore, relationStore, settings]);
-  useLayoutEffect(() => {
-    const area = scrollRef.current;
-    const pending = pendingScrollRef.current;
-    if (!area || !pending) return;
-    area.scrollLeft = Math.max(0, pending.left);
-    area.scrollTop = Math.max(0, pending.top);
-    pendingScrollRef.current = null;
-  }, [zoom]);
   function zoomTo(nextValue: number, point?: {x:number;y:number}) {
-    const area = scrollRef.current;
+    const area = canvasRef.current;
     if (!area) return;
-    const before = zoomRef.current, next = clampZoom(nextValue);
-    if (before === next) return;
-    const anchor = point || {x: area.clientWidth/2, y: area.clientHeight/2};
-    // Successive wheel events can arrive before React paints the previous zoom.
-    // Anchor against the pending position instead of stale DOM scroll values.
-    pendingScrollRef.current = anchoredScroll(before,next,
-      pendingScrollRef.current || {left:area.scrollLeft,top:area.scrollTop},anchor);
-    zoomRef.current = next;
-    setZoom(next);
+    const anchor = point || {x:area.clientWidth/2,y:area.clientHeight/2};
+    updateCamera(zoomAround(cameraRef.current,nextValue,anchor));
   }
   function fitToContent() {
-    const area = scrollRef.current;
+    const area = canvasRef.current;
     if (!area) return;
     const shapes = [
       ...model.tables.map(table => ({
@@ -151,29 +150,78 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
         x:item.x,y:item.y,width:item.w,height:item.h,
       })),
     ];
-    const result = fitZoom(shapes,{width:area.clientWidth,height:area.clientHeight});
-    if (result.zoom === zoomRef.current) {
-      area.scrollLeft = Math.max(0,result.scroll.left);
-      area.scrollTop = Math.max(0,result.scroll.top);
-    } else {
-      pendingScrollRef.current = result.scroll;
-      zoomRef.current = result.zoom;
-      setZoom(result.zoom);
+    updateCamera(fitCamera(shapes,{width:area.clientWidth,height:area.clientHeight}));
+  }
+  function startPan(event:PointerEvent<HTMLDivElement>) {
+    panRef.current = {
+      id:event.pointerId,screenX:event.clientX,screenY:event.clientY,
+      x:cameraRef.current.x,y:cameraRef.current.y,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+    setIsPanning(true);
+  }
+  function onPanCapture(event:PointerEvent<HTMLDivElement>) {
+    if (event.button === 1 || (event.button === 0 && spaceHeld.current)) {
+      event.stopPropagation();
+      startPan(event);
     }
   }
+  function onBlankPan(event:PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0 || panRef.current) return;
+    const element = event.target;
+    if (element instanceof Element && element.closest(
+      ".erd-table, .erd-architecture-card, .erd-line, .erd-architecture-link, .erd-architecture-notice"
+    )) return;
+    startPan(event);
+  }
+  function movePan(event:PointerEvent<HTMLDivElement>) {
+    const drag=panRef.current;
+    if (!drag || drag.id !== event.pointerId) return;
+    updateCamera({...cameraRef.current,
+      x:drag.x+event.clientX-drag.screenX,
+      y:drag.y+event.clientY-drag.screenY});
+  }
+  function endPan(event:PointerEvent<HTMLDivElement>) {
+    if (panRef.current?.id !== event.pointerId) return;
+    panRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId))
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    setIsPanning(false);
+  }
   useEffect(() => {
-    const area = scrollRef.current;
+    const area = canvasRef.current;
     if (!area) return;
-    function wheel(event: WheelEvent) {
-      if (!event.ctrlKey && !event.metaKey) return;
+    function wheel(event:WheelEvent) {
       event.preventDefault();
-      const rect = area!.getBoundingClientRect();
-      // Trackpad pinch and Ctrl/Cmd + wheel zoom around the pointer.
-      const change = Math.exp(-event.deltaY * 0.004);
-      zoomTo(zoomRef.current * change, {x:event.clientX-rect.left,y:event.clientY-rect.top});
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? area!.clientHeight : 1;
+      if (event.ctrlKey || event.metaKey) {
+        const rect=area!.getBoundingClientRect();
+        const zoom=cameraRef.current.zoom*Math.exp(-event.deltaY*unit*0.004);
+        updateCamera(zoomAround(cameraRef.current,zoom,{
+          x:event.clientX-rect.left,y:event.clientY-rect.top,
+        }));
+      } else {
+        updateCamera(panCamera(cameraRef.current,-event.deltaX*unit,-event.deltaY*unit));
+      }
     }
+    const typing=(target:EventTarget|null) =>
+      target instanceof Element && !!target.closest("input,textarea,select,[contenteditable=true]");
+    function keydown(event:KeyboardEvent) {
+      if (event.code === "Space" && !typing(event.target)) spaceHeld.current=true;
+    }
+    function keyup(event:KeyboardEvent) { if (event.code === "Space") spaceHeld.current=false; }
+    function blur() { spaceHeld.current=false; }
     area.addEventListener("wheel",wheel,{passive:false});
-    return () => area.removeEventListener("wheel",wheel);
+    window.addEventListener("keydown",keydown);
+    window.addEventListener("keyup",keyup);
+    window.addEventListener("blur",blur);
+    return () => {
+      area.removeEventListener("wheel",wheel);
+      window.removeEventListener("keydown",keydown);
+      window.removeEventListener("keyup",keyup);
+      window.removeEventListener("blur",blur);
+    };
   }, []);
   const dialect = model.dialect;
   const active = model.tables.find((t) => t.id === selected);
@@ -186,8 +234,9 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
     const columns = new Y.Array<MapValue>();
     columns.push([newColumn(dialect, dialect === "db2i" ? "ID" : "id", true)]);
     table.set("name", dialect === "db2i" ? "TABLE" + (model.tables.length + 1) : "new_table_" + (model.tables.length + 1));
-    table.set("x", 100 + (model.tables.length % 4) * 280);
-    table.set("y", 100 + Math.floor(model.tables.length / 4) * 280);
+    const center = centerWorld();
+    table.set("x", center.x - 118 + (model.tables.length%3)*24);
+    table.set("y", center.y - 48 + (model.tables.length%3)*24);
     table.set("columns", columns);
     tableStore.set(id, table);
     setSelected(id);
@@ -262,8 +311,8 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
     const table = getTable(d.id);
     if (!table) return;
     doc.transact(() => {
-      table.set("x", Math.max(8, d.x + (event.clientX - d.pointerX) / zoomRef.current));
-      table.set("y", Math.max(8, d.y + (event.clientY - d.pointerY) / zoomRef.current));
+      table.set("x", d.x + (event.clientX - d.pointerX) / cameraRef.current.zoom);
+      table.set("y", d.y + (event.clientY - d.pointerY) / cameraRef.current.zoom);
     });
   }
   function exportJSON() {
@@ -300,11 +349,11 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
           <Download size={15} /> {dialect === "db2i" ? "IBM i Db2 SQL" : "PostgreSQL SQL"}
         </button>
         <div className="erd-zoom-controls" role="group" aria-label="Diagram zoom">
-          <button type="button" aria-label="Zoom out" title="Zoom out" disabled={zoom <= 0.25}
-            onClick={() => zoomTo(stepZoom(zoomRef.current,-1))}><Minus size={15}/></button>
-          <output aria-live="polite" aria-label="Current zoom">{Math.round(zoom*100)}%</output>
-          <button type="button" aria-label="Zoom in" title="Zoom in" disabled={zoom >= 2.5}
-            onClick={() => zoomTo(stepZoom(zoomRef.current,1))}><Plus size={15}/></button>
+          <button type="button" aria-label="Zoom out" title="Zoom out" disabled={camera.zoom <= 0.25}
+            onClick={() => zoomTo(stepZoom(cameraRef.current.zoom,-1))}><Minus size={15}/></button>
+          <output aria-live="polite" aria-label="Current zoom">{Math.round(camera.zoom*100)}%</output>
+          <button type="button" aria-label="Zoom in" title="Zoom in" disabled={camera.zoom >= 2.5}
+            onClick={() => zoomTo(stepZoom(cameraRef.current.zoom,1))}><Plus size={15}/></button>
           <button type="button" title="Show all diagram elements" aria-label="Fit diagram to view"
             onClick={fitToContent}><Scan size={15}/> Fit</button>
           <button type="button" title="Reset to 100% zoom" onClick={() => zoomTo(1)}>100%</button>
@@ -312,10 +361,14 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
       </div>
       {feedback && <p className="erd-feedback" role="status">{feedback}</p>}
       <div className="erd-layout">
-        <div className="erd-scroll" ref={scrollRef} aria-label="Scrollable diagram canvas">
-          <div className="erd-zoom-space" style={{width:ERD_WIDTH*zoom,height:ERD_HEIGHT*zoom}}>
-          <div className="erd-stage" style={{transform:`scale(${zoom})`,transformOrigin:"top left"}}
-            onDragOver={annotations.dragOverImage} onDrop={annotations.dropImage}>
+        <div className={isPanning ? "erd-scroll is-panning" : "erd-scroll"} ref={canvasRef}
+          aria-label="Infinite diagram canvas, drag empty space to pan"
+          onPointerDownCapture={onPanCapture} onPointerDown={onBlankPan}
+          onPointerMove={movePan} onPointerUp={endPan} onPointerCancel={endPan}
+          style={{backgroundSize:`${22*camera.zoom}px ${22*camera.zoom}px`,
+            backgroundPosition:`${camera.x}px ${camera.y}px`}}>
+          <div className="erd-stage" style={{transform:`translate(${camera.x}px,${camera.y}px) scale(${camera.zoom})`,
+            transformOrigin:"top left"}} onDragOver={annotations.dragOverImage} onDrop={annotations.dropImage}>
             <svg className="erd-lines" width="1600" height="1050" viewBox="0 0 1600 1050" aria-label="Crow's foot relationships">
               {model.relations.map((r) => {
                 const from = model.tables.find((t) => t.id === r.fromTable);
@@ -370,7 +423,7 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
               <div className="erd-empty">Create your first table to begin planning a database.</div>
             )}
           </div>
-          </div>
+          <div className="erd-pan-hint" aria-hidden="true">Drag empty space to pan · Wheel to pan · Ctrl/Cmd + wheel to zoom</div>
         </div>
         <aside className="erd-inspector">
           {dialect === "db2i" && (
