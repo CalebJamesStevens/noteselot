@@ -65,7 +65,8 @@ function center(id: string, tables: TableReference[], nodes: Annotation[]) {
   const t = tables.find(x => x.id === id);
   return t ? { x:t.x+118, y:t.y+(36+t.columns.length*29)/2, w:236 } : null;
 }
-export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selectedTableId: string | null, deselectRelational: () => void, zoom = 1) {
+export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selectedTableId: string | null,
+  deselectRelational: () => void, zoom = 1, getCenter: () => {x:number;y:number} = () => ({x:300,y:200})) {
   const nodes = useMemo(() => doc.getMap<Value>("erd-annotations"), [doc]);
   const connectors = useMemo(() => doc.getMap<Value>("erd-architecture-links"), [doc]);
   const read = () => ({ items: Array.from(nodes.entries()).map(([id,v]) => readNode(id,v)),
@@ -92,7 +93,9 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
     if(kind==="api") path.insert(0,"/api/example");
     value.set("kind",kind); value.set("title",title); value.set("body",body);
     value.set("path",path); value.set("method","GET");
-    value.set("x",80+(data.items.length%5)*280); value.set("y",100+Math.floor(data.items.length/5)*205);
+    const center = getCenter();
+    value.set("x",center.x-130+(data.items.length%3)*24);
+    value.set("y",center.y-85+(data.items.length%3)*24);
     value.set("w",kind==="note"||kind==="api"?260:210);
     value.set("h",kind==="note"?180:kind==="api"?170:145);
     nodes.set(id,value); pickNode(id); setFeedback("");
@@ -119,8 +122,9 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
         value.set("kind", "image"); value.set("title", title);
         value.set("body", body); value.set("path", path);
         value.set("method", "GET"); value.set("imageData", imageData);
-        value.set("x", Math.min(1260, Math.max(0, pos?.x ?? 90 + (data.items.length % 4) * 300)));
-        value.set("y", Math.min(790, Math.max(0, pos?.y ?? 100 + Math.floor(data.items.length / 4) * 230)));
+        const center = getCenter();
+        value.set("x", pos?.x ?? center.x-165);
+        value.set("y", pos?.y ?? center.y-120);
         value.set("w", 330); value.set("h", 240);
         nodes.set(id, value);
         pickNode(id);
@@ -171,11 +175,11 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
     const dx=(e.clientX-d.sx)/zoom,dy=(e.clientY-d.sy)/zoom;
     doc.transact(()=>{
       if(d.action==="move") {
-        v.set("x",Math.max(0,Math.min(1600-d.w,d.x+dx)));
-        v.set("y",Math.max(0,Math.min(1050-d.h,d.y+dy)));
+        v.set("x",d.x+dx);
+        v.set("y",d.y+dy);
       } else {
-        v.set("w",Math.max(180,Math.min(520,1600-d.x,d.w+dx)));
-        v.set("h",Math.max(105,Math.min(420,1050-d.y,d.h+dy)));
+        v.set("w",Math.max(180,Math.min(2500,d.w+dx)));
+        v.set("h",Math.max(105,Math.min(2500,d.h+dy)));
       }
     });
   }
