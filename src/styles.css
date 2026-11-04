@@ -2871,7 +2871,8 @@ form {
 @media (max-width: 700px) {
   .sidebar-compact-toggle { display: none; }
   .erd-workspace .workspace-topbar { height: 47px; min-height: 47px; }
-  .erd-workspace .workspace-body { height: calc(100dvh - 47px); }
+  /* The mobile-bar above the workspace also occupies 52px. */
+  .erd-workspace .workspace-body { height: calc(100dvh - 99px); }
   .erd-workspace .document-heading { min-height: 45px; padding: 7px 10px; }
   .erd-workspace .document-title { font-size: 15px; }
   .erd-workspace .document-meta { display: none; }
