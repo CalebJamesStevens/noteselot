@@ -2404,3 +2404,15 @@ form {
   overflow: hidden;
   max-height: 30px;
 }
+
+
+/* Local zoom controls for the database and architecture design canvas. */
+.erd-zoom-space { position: relative; flex: none; }
+.erd-stage { transform-origin: top left; }
+.erd-zoom-controls { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; padding-left: 9px; border-left: 1px solid var(--line); }
+.erd-zoom-controls output { min-width: 44px; text-align: center; font-size: 12px; font-variant-numeric: tabular-nums; font-weight: 650; }
+.erd-zoom-controls button { white-space: nowrap; min-width: 28px; }
+.erd-zoom-controls button:disabled { opacity: .45; cursor: not-allowed; }
+@media (max-width: 760px) {
+  .erd-zoom-controls { margin-left: 0; padding-left: 0; border-left: 0; width: 100%; justify-content: flex-end; }
+}

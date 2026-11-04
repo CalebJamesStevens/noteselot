@@ -65,7 +65,7 @@ function center(id: string, tables: TableReference[], nodes: Annotation[]) {
   const t = tables.find(x => x.id === id);
   return t ? { x:t.x+118, y:t.y+(36+t.columns.length*29)/2, w:236 } : null;
 }
-export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selectedTableId: string | null, deselectRelational: () => void) {
+export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selectedTableId: string | null, deselectRelational: () => void, zoom = 1) {
   const nodes = useMemo(() => doc.getMap<Value>("erd-annotations"), [doc]);
   const connectors = useMemo(() => doc.getMap<Value>("erd-architecture-links"), [doc]);
   const read = () => ({ items: Array.from(nodes.entries()).map(([id,v]) => readNode(id,v)),
@@ -139,7 +139,7 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
     const file = Array.from(e.dataTransfer.files).find(f => f.type.startsWith("image/"));
     if (!file) { setFeedback("Drop a PNG, JPEG, or WebP picture."); return; }
     const box = e.currentTarget.getBoundingClientRect();
-    void uploadImage(file, null, {x:e.clientX-box.left,y:e.clientY-box.top});
+    void uploadImage(file, null, {x:(e.clientX-box.left)/zoom,y:(e.clientY-box.top)/zoom});
   }
   function dragOverImage(e: DragEvent<HTMLElement>) {
     if (Array.from(e.dataTransfer.types).includes("Files")) e.preventDefault();
@@ -168,7 +168,7 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
     const d=drag.current;
     if(!d) return;
     const v=nodes.get(d.id);if(!v)return;
-    const dx=e.clientX-d.sx,dy=e.clientY-d.sy;
+    const dx=(e.clientX-d.sx)/zoom,dy=(e.clientY-d.sy)/zoom;
     doc.transact(()=>{
       if(d.action==="move") {
         v.set("x",Math.max(0,Math.min(1600-d.w,d.x+dx)));
