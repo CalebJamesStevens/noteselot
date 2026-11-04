@@ -459,6 +459,8 @@ test("native ERD plans synchronize between coworkers and persist in PostgreSQL",
   table.set("name", "customers");
   table.set("x", 120);
   table.set("y", 120);
+  table.set("w", 450);
+  table.set("h", 210);
   const columns = new Y.Array();
   const col = new Y.Map();
   col.set("id", "column-a");
@@ -499,9 +501,31 @@ test("native ERD plans synchronize between coworkers and persist in PostgreSQL",
   const connectionLabel = new Y.Text();
   connectionLabel.insert(0, "uses");
   connection.set("from", "api-a"); connection.set("to", "table-a");
+  connection.set("toColumn","column-a");
   connection.set("label", connectionLabel);
   a.doc.getMap("erd-architecture-links").set("flow-a", connection);
-  await waitFor(() => b.doc.getMap("erd-architecture-links").get("flow-a")?.get("label")?.toString() === "uses");
+  await waitFor(() => b.doc.getMap("erd-architecture-links").get("flow-a")?.get("label")?.toString() === "uses"
+    && b.doc.getMap("erd-architecture-links").get("flow-a")?.get("toColumn") === "column-a"
+    && b.doc.getMap("erd-tables").get("table-a")?.get("w") === 450);
+  const {fragmentFromRichDoc,jsonFromFragment} = await import("../src/erd/richSchema.ts");
+  const note = new Y.Map();
+  note.set("kind","note");
+  const noteTitle = new Y.Text(); noteTitle.insert(0,"Architecture notes");
+  note.set("title",noteTitle);
+  const bodyText = new Y.Text(); bodyText.insert(0,"Important rules");
+  note.set("body",bodyText);
+  note.set("richBody",fragmentFromRichDoc({
+    type:"doc",content:[{type:"paragraph",content:[
+      {type:"text",text:"Important",marks:[{type:"bold"},{type:"underline"},
+        {type:"diagramStyle",attrs:{fontSize:"18px",color:"#DD5500"}}]},
+      {type:"text",text:" rules"},
+    ]}],
+  }));
+  a.doc.getMap("erd-annotations").set("note-a",note);
+  await waitFor(() => {
+    const replicated=b.doc.getMap("erd-annotations").get("note-a");
+    return !!replicated && jsonFromFragment(replicated.get("richBody")).content?.[0]?.content?.[0]?.text==="Important";
+  });
   const peerTable = b.doc.getMap("erd-tables").get("table-a");
   peerTable.set("name", "client_accounts");
   await waitFor(() => a.doc.getMap("erd-tables").get("table-a")?.get("name") === "client_accounts");
@@ -518,7 +542,11 @@ test("native ERD plans synchronize between coworkers and persist in PostgreSQL",
       && rows[0].search_text.includes("Return active customers via service")
       && rows[0].search_text.includes("External boundary")
       && restored.getMap("erd-annotations").get("api-a")?.get("body")?.toString().includes("via service")
-      && restored.getMap("erd-architecture-links").get("flow-a")?.get("to") === "table-a";
+      && restored.getMap("erd-architecture-links").get("flow-a")?.get("to") === "table-a"
+      && restored.getMap("erd-architecture-links").get("flow-a")?.get("toColumn") === "column-a"
+      && restored.getMap("erd-tables").get("table-a")?.get("w") === 450
+      && jsonFromFragment(restored.getMap("erd-annotations").get("note-a").get("richBody"))
+        .content?.[0]?.content?.[0]?.marks?.some(m=>m.type==="underline");
     restored.destroy();
     return correct;
   });
