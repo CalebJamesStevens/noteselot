@@ -314,7 +314,7 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
         {choices.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
       {tables.some(t=>t.id===activeLine[side]) && (
         <select aria-label={"Architecture connection "+side+" table field"}
-          value={activeLine[side+"Column"]||""}
+          value={activeLine[side==="from"?"fromColumn":"toColumn"]||""}
           onChange={e=>{
             const link=connectors.get(activeLine.id);
             if(e.target.value)link?.set(side+"Column",e.target.value);
