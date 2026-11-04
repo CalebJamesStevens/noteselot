@@ -2416,3 +2416,41 @@ form {
 @media (max-width: 760px) {
   .erd-zoom-controls { margin-left: 0; padding-left: 0; border-left: 0; width: 100%; justify-content: flex-end; }
 }
+
+
+/* An unbounded workspace: the grid is painted on the viewport, not on a page. */
+.erd-scroll {
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+  cursor: grab;
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+.erd-scroll.is-panning, .erd-scroll.is-panning * { cursor: grabbing !important; }
+.erd-stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  will-change: transform;
+}
+.erd-lines, .erd-architecture-lines { overflow: visible; }
+.erd-pan-hint {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  padding: 5px 8px;
+  max-width: calc(100% - 24px);
+  pointer-events: none;
+  border-radius: 6px;
+  background: var(--sidebar);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 10px;
+  opacity: 0.85;
+  z-index: 4;
+}
+@media (max-width: 760px) {
+  .erd-pan-hint { font-size: 9px; }
+}
