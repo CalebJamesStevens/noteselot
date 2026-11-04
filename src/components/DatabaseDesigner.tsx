@@ -45,6 +45,8 @@ function tableState(id: string, value: MapValue): Table {
     name: String(value.get("name") ?? "Untitled"),
     x: Number(value.get("x") ?? 120),
     y: Number(value.get("y") ?? 120),
+    w: Number(value.get("w") ?? 236),
+    h: Number(value.get("h") ?? Math.max(90,36+(columns?.length ?? 1)*29)),
     columns: columns ? columns.toArray().map(columnState) : [],
     systemName: String(value.get("systemName") ?? ""),
   };
@@ -62,7 +64,7 @@ function relationState(id: string, value: MapValue): Relation {
 }
 function endpoint(table: Table, columnId: string, right: boolean) {
   const index = Math.max(0, table.columns.findIndex((c) => c.id === columnId));
-  return { x: table.x + (right ? 236 : 0), y: table.y + 42 + index * 29 + 15 };
+  return { x: table.x + (right ? table.w : 0), y: table.y + 36 + index * 29 + 14.5 };
 }
 function CardinalityMark({ x, y, dir, kind }: { x: number; y: number; dir: number; kind: Cardinality }) {
   const many = kind === "many" || kind === "zero-many";
@@ -123,7 +125,9 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
   const annotations = useERDAnnotations(doc, model.tables, selected,
     () => { setSelected(null); setSelectedRelation(null); }, camera.zoom, centerWorld,
     (x,y) => screenToWorld(cameraRef.current,{x,y}));
-  const drag = useRef<{ id: string; x: number; y: number; pointerX: number; pointerY: number } | null>(null);
+  const drag = useRef<{ id: string; action:"move"|"resize"; x: number; y: number; w:number; h:number; pointerX: number; pointerY: number } | null>(null);
+  const [inspectorWidth,setInspectorWidth] = useState(380);
+  const inspectorWidthRef = useRef<{start:number;width:number;id:number}|null>(null);
   useEffect(() => {
     const update = () => setModel(snapshot());
     tableStore.observeDeep(update);
@@ -146,7 +150,7 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
     if (!area) return;
     const shapes = [
       ...model.tables.map(table => ({
-        x:table.x,y:table.y,width:236,height:36+table.columns.length*29,
+        x:table.x,y:table.y,width:table.w,height:Math.max(table.h,36+table.columns.length*29),
       })),
       ...annotations.snapshot().annotations.map(item => ({
         x:item.x,y:item.y,width:item.w,height:item.h,
@@ -243,6 +247,8 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
     table.set("x", center.x - 118 + (model.tables.length%3)*24);
     table.set("y", center.y - 48 + (model.tables.length%3)*24);
     table.set("columns", columns);
+    table.set("w",236);
+    table.set("h",100);
     tableStore.set(id, table);
     setSelected(id);
     setSelectedRelation(null);
@@ -315,10 +321,27 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
     const d = drag.current;
     const table = getTable(d.id);
     if (!table) return;
+    const dx=(event.clientX-d.pointerX)/cameraRef.current.zoom;
+    const dy=(event.clientY-d.pointerY)/cameraRef.current.zoom;
     doc.transact(() => {
-      table.set("x", d.x + (event.clientX - d.pointerX) / cameraRef.current.zoom);
-      table.set("y", d.y + (event.clientY - d.pointerY) / cameraRef.current.zoom);
+      if (d.action==="move") {
+        table.set("x", d.x + dx);
+        table.set("y", d.y + dy);
+      } else {
+        table.set("w", Math.max(190,Math.min(2400,d.w+dx)));
+        const columns=table.get("columns") as Y.Array<MapValue> | undefined;
+        table.set("h", Math.max(90,36+(columns?.length ?? 0)*29,
+          Math.min(2400,d.h+dy)));
+      }
     });
+  }
+  function resizeInspector(event:PointerEvent<HTMLDivElement>) {
+    const move=inspectorWidthRef.current;
+    if (!move||event.pointerId!==move.id) return;
+    const maxWidth=Math.max(290,Math.min(900,
+      (event.currentTarget.parentElement?.clientWidth ?? 1200)-300));
+    setInspectorWidth(Math.max(280,Math.min(maxWidth,
+      move.width+move.start-event.clientX)));
   }
   function exportJSON() {
     download(title + ".erd.json", JSON.stringify({ version: 3, ...model, ...annotations.snapshot() }, null, 2), "application/json");
@@ -402,11 +425,12 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
             {annotations.layer}
             {model.tables.map((table) => (
               <article key={table.id} className={selected === table.id ? "erd-table selected" : "erd-table"}
-                style={{ left: table.x, top: table.y }}
+                style={{ left: table.x, top: table.y, width:table.w,
+                  height: Math.max(table.h,36+table.columns.length*29) }}
                 onClick={() => { annotations.clearSelection(); setSelected(table.id); setSelectedRelation(null); }}>
                 <header onPointerDown={(e) => {
                   if (e.button !== 0) return;
-                  drag.current = { id: table.id, x: table.x, y: table.y, pointerX: e.clientX, pointerY: e.clientY };
+                  drag.current = { id: table.id, action:"move", x: table.x, y: table.y, w:table.w, h:table.h, pointerX: e.clientX, pointerY: e.clientY };
                   e.currentTarget.setPointerCapture(e.pointerId);
                   annotations.clearSelection();
                   setSelected(table.id);
@@ -425,6 +449,19 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
                   ))}
                   {!table.columns.length && <p>No columns</p>}
                 </div>
+                <button className="erd-table-resize-grip" type="button" aria-label={"Resize table "+table.name}
+                  onPointerDown={e=>{
+                    if(e.button!==0)return;
+                    e.stopPropagation();
+                    drag.current={id:table.id,action:"resize",x:table.x,y:table.y,w:table.w,h:table.h,
+                      pointerX:e.clientX,pointerY:e.clientY};
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                    setSelected(table.id);
+                    setSelectedRelation(null);
+                    annotations.clearSelection();
+                  }}
+                  onPointerMove={moveTable} onPointerUp={()=>{drag.current=null;}}
+                  onPointerCancel={()=>{drag.current=null;}}/>
               </article>
             ))}
             {!model.tables.length && (
@@ -433,7 +470,25 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
           </div>
           <div className="erd-pan-hint" aria-hidden="true">Drag empty space to pan · Wheel to pan · Ctrl/Cmd + wheel to zoom</div>
         </div>
-        <aside className="erd-inspector">
+        <div role="separator" aria-orientation="vertical" aria-label="Resize properties panel" tabIndex={0}
+          className="erd-inspector-resizer"
+          onKeyDown={e=>{
+            if(e.key==="ArrowLeft"||e.key==="ArrowRight"){
+              e.preventDefault();
+              setInspectorWidth(w=>Math.max(280,Math.min(900,w+(e.key==="ArrowLeft"?20:-20))));
+            }
+          }}
+          onPointerDown={e=>{
+            if(e.button!==0)return;
+            inspectorWidthRef.current={id:e.pointerId,start:e.clientX,width:inspectorWidth};
+            e.currentTarget.setPointerCapture(e.pointerId);
+          }}
+          onPointerMove={resizeInspector}
+          onPointerUp={e=>{
+            if(inspectorWidthRef.current?.id===e.pointerId)inspectorWidthRef.current=null;
+          }}
+          onPointerCancel={()=>{inspectorWidthRef.current=null;}}/>
+        <aside className="erd-inspector" style={{width:inspectorWidth}}>
           {dialect === "db2i" && (
             <section className="erd-db2-settings">
               <h3>IBM i Db2 helpers</h3>
@@ -447,6 +502,13 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
           {annotations.inspector ? annotations.inspector : active ? (
             <>
               <h3>Table properties</h3>
+              <div className="erd-table-size">
+                <label>Width (px)<input type="number" min="190" max="2400" value={Math.round(active.w)}
+                  onChange={e=>getTable(active.id)?.set("w",Math.max(190,Math.min(2400,Number(e.target.value)||190)))} /></label>
+                <label>Height (px)<input type="number" min={36+active.columns.length*29} max="2400"
+                  value={Math.round(Math.max(active.h,36+active.columns.length*29))}
+                  onChange={e=>getTable(active.id)?.set("h",Math.max(36+active.columns.length*29,Math.min(2400,Number(e.target.value)||90)))} /></label>
+              </div>
               <label>Table name<input value={active.name} maxLength={80} onChange={(e) => getTable(active.id)?.set("name", e.target.value)} /></label>
               {dialect === "db2i" && (
                 <label>Optional system file name (10 chars)
@@ -534,7 +596,7 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
                         {model.tables.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                       </select>
                     </label>
-                    <label>Column
+                    <label>{side === "from" ? "Referenced field (line attaches here)" : "Foreign-key field (line attaches here)"}
                       <select value={columnId} onChange={(e) => getRelation(link.id)?.set(side + "Column", e.target.value)}>
                         {table?.columns.map((c) => <option value={c.id} key={c.id}>{c.name}</option>)}
                       </select>
