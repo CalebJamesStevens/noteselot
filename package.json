@@ -16,7 +16,7 @@
     "format": "prettier --write src server scripts tests *.json *.ts *.html"
   },
   "dependencies": {
-    "@hocuspocus/provider": "4.7.1",
+    "@hocuspocus/provider": "4.8.0",
     "@hocuspocus/server": "4.7.1",
     "@tiptap/core": "3.32.0",
     "@tiptap/extension-collaboration": "3.32.0",
