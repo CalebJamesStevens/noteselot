@@ -14,6 +14,11 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --chown=node:node server ./server
+# The server's ERD JSON importer uses this shared Tiptap/Yjs schema at runtime.
+# Vite only bundles browser sources into dist/, so copy this runtime dependency explicitly.
+COPY --from=build --chown=node:node /app/src/erd/richSchema.ts ./src/erd/richSchema.ts
+# Fail the image build if runtime imports are missing, before deployment.
+RUN node --input-type=module -e "await import('./server/erd-import.js')"
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
