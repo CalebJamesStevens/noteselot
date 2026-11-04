@@ -4,7 +4,8 @@ import * as Y from "yjs";
 const identifier = z.string().min(1).max(120).regex(/^[\w-]+$/);
 const name = z.string().min(1).max(200);
 const text = z.string().max(5000);
-const coordinate = z.number().finite().min(-10000).max(100000);
+// Diagram elements can be anywhere in world space. Finite-only avoids invalid geometry.
+const coordinate = z.number().finite();
 const column = z.object({
   id: identifier, name, type: z.string().min(1).max(100),
   primary: z.boolean(), nullable: z.boolean(),

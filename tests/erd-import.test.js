@@ -128,3 +128,24 @@ test("picture import enforces image count, type and encoded size budgets", () =>
   src.annotations[0].imageData = ONE_PIXEL_PNG;
   assert.throws(() => validateDesign(src), /Only picture elements/);
 });
+
+
+test("infinite-canvas coordinates survive JSON import without artificial page limits", () => {
+  const raw = payload();
+  raw.tables[0].x = -1_250_000;
+  raw.tables[0].y = 2_650_000;
+  raw.tables[1].x = 3_700_000;
+  raw.tables[1].y = -5_800_000;
+  raw.annotations[0].x = -6_700_000;
+  raw.annotations[0].y = 4_300_000;
+  assert.doesNotThrow(() => validateDesign(raw));
+  const imported = buildImportedDesign(raw);
+  const doc = new Y.Doc();
+  Y.applyUpdate(doc, imported.state);
+  assert.equal(doc.getMap("erd-tables").get("t1").get("x"), -1_250_000);
+  assert.equal(doc.getMap("erd-tables").get("t2").get("y"), -5_800_000);
+  assert.equal(doc.getMap("erd-annotations").get("a1").get("x"), -6_700_000);
+  doc.destroy();
+  raw.tables[0].x = Infinity;
+  assert.throws(() => validateDesign(raw), /valid Noteselot/);
+});
