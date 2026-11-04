@@ -338,6 +338,6 @@ export function useERDAnnotations(doc: Y.Doc, tables: TableReference[], selected
     <button className="erd-danger" onClick={()=>{connectors.delete(activeLine.id);clearSelection();}}>
       <Trash2 size={14}/> Delete connector</button>
   </section>:null;
-  return {toolbar,extraToolbar,layer,inspector,clearSelection,removeReferences,dropImage,dragOverImage,
+  return {toolbar,extraToolbar,layer,inspector,selectedId:selected,selectedLineId:selectedLine,clearSelection,removeReferences,dropImage,dragOverImage,
     snapshot:()=>({annotations:data.items,architectureConnections:data.lines})};
 }
