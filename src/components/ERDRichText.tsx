@@ -1,10 +1,9 @@
 import { useState, type ReactNode } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
 import Collaboration from "@tiptap/extension-collaboration";
 import { Bold, Italic, Underline, Strikethrough, List, ListOrdered, RemoveFormatting } from "lucide-react";
 import * as Y from "yjs";
-import { DiagramStyle, richExtensions, type RichNode, validColor, validSize } from "../erd/richSchema";
+import { richExtensions, type RichNode, validColor, validSize } from "../erd/richSchema";
 
 function mirrorPlainText(node:Y.Map<unknown>, text:string){
   let body=node.get("body");
