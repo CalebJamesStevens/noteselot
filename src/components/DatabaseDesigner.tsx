@@ -4,7 +4,7 @@ import { Database, Download, Link2, Minus, Plus, Scan, Trash2 } from "lucide-rea
 import { createId } from "../id";
 import { download } from "../api";
 import { useERDAnnotations } from "./ERDAnnotations";
-import { fitCamera, panCamera, screenToWorld, stepZoom, zoomAround, type Camera } from "../erd/viewport";
+import { MIN_ZOOM, MAX_ZOOM, fitCamera, panCamera, screenToWorld, stepZoom, zoomAround, type Camera } from "../erd/viewport";
 
 import { 
   dataTypes, db2iFieldPresets, defaultColumnType, generateSQL,
@@ -350,10 +350,10 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
           <Download size={15} /> {dialect === "db2i" ? "IBM i Db2 SQL" : "PostgreSQL SQL"}
         </button>
         <div className="erd-zoom-controls" role="group" aria-label="Diagram zoom">
-          <button type="button" aria-label="Zoom out" title="Zoom out" disabled={camera.zoom <= 0.25}
+          <button type="button" aria-label="Zoom out" title="Zoom out" disabled={camera.zoom <= MIN_ZOOM}
             onClick={() => zoomTo(stepZoom(cameraRef.current.zoom,-1))}><Minus size={15}/></button>
           <output aria-live="polite" aria-label="Current zoom">{Math.round(camera.zoom*100)}%</output>
-          <button type="button" aria-label="Zoom in" title="Zoom in" disabled={camera.zoom >= 2.5}
+          <button type="button" aria-label="Zoom in" title="Zoom in" disabled={camera.zoom >= MAX_ZOOM}
             onClick={() => zoomTo(stepZoom(cameraRef.current.zoom,1))}><Plus size={15}/></button>
           <button type="button" title="Show all diagram elements" aria-label="Fit diagram to view"
             onClick={fitToContent}><Scan size={15}/> Fit</button>
