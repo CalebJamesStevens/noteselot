@@ -77,6 +77,7 @@ export function fragmentFromRichDoc(value:unknown):Y.XmlFragment {
   return prosemirrorJSONToYXmlFragment(richSchema,json);
 }
 export function jsonFromFragment(fragment:Y.XmlFragment):RichNode {
+  if(!fragment.length)return {type:"doc",content:[{type:"paragraph"}]};
   return yXmlFragmentToProsemirrorJSON(fragment) as RichNode;
 }
 export function ensureRichFragment(node:Y.Map<unknown>):Y.XmlFragment {
