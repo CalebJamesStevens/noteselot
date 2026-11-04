@@ -221,7 +221,7 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
     if (event.button !== 0 || panRef.current) return;
     const element = event.target;
     if (element instanceof Element && element.closest(
-      ".erd-table, .erd-architecture-card, .erd-line, .erd-architecture-link, .erd-architecture-notice"
+      ".erd-table, .erd-architecture-card, .erd-line, .erd-architecture-link, .erd-architecture-notice, .erd-zoom-controls"
     )) return;
     startPan(event);
   }
@@ -454,6 +454,14 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
               if ((e.target as Element).closest("button"))
                 (e.currentTarget.parentElement as HTMLDetailsElement).open=false;
             }}>
+              <label className="erd-export-dialect">SQL target
+                <select aria-label="Export SQL target" value={dialect} onChange={e=>{
+                  settings.set("dialect",e.target.value as Dialect);
+                }}>
+                  <option value="postgres">PostgreSQL</option>
+                  <option value="db2i">IBM i Db2</option>
+                </select>
+              </label>
               <button type="button" onClick={exportJSON}><Download size={15}/> Noteselot JSON</button>
               <button type="button" onClick={exportDDL}>
                 <Database size={15}/> {dialect==="db2i" ? "IBM i Db2 SQL" : "PostgreSQL SQL"}
@@ -569,7 +577,7 @@ export default function DatabaseDesigner({ doc, title }: { doc: Y.Doc; title: st
         </div>
         {inspectorOpen && (<>
         <div role="separator" aria-orientation="vertical" aria-label="Resize properties panel" tabIndex={0}
-          className="erd-inspector-resizer"
+          className="erd-inspector-resizer" style={{right:inspectorWidth}}
           onKeyDown={e=>{
             if(e.key==="ArrowLeft"||e.key==="ArrowRight"){
               e.preventDefault();
