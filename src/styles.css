@@ -2894,3 +2894,215 @@ form {
   .erd-planner.erd-focus-mode .erd-toolbar-document { flex: 0 0 25px; }
   .erd-planner.erd-focus-mode .erd-toolbar-document strong { display: none; }
 }
+
+/* Mermaid diagrams use a bounded, independently interactive canvas. */
+.diagram-workspace .workspace-body {
+  min-height: 0;
+  height: calc(100dvh - 67px);
+}
+.diagram-workspace .document-area {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+.diagram-workspace .document-heading { flex: 0 0 auto; }
+.diagram-editor {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.diagram-editor .diagram-tools { flex: 0 0 auto; }
+.diagram-editor .diagram-split {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-columns: var(--diagram-source-width, 38%) 8px minmax(0, 1fr);
+}
+.diagram-editor .diagram-source {
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 17px 18px;
+  border: 0;
+  gap: 12px;
+}
+.diagram-editor .diagram-source textarea {
+  display: block;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  width: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  resize: none;
+  outline-offset: 3px;
+  white-space: pre;
+  tab-size: 2;
+}
+.diagram-editor .diagram-divider {
+  position: relative;
+  background: var(--line);
+  touch-action: none;
+  cursor: col-resize;
+  outline-offset: -2px;
+  transition: background 0.16s ease;
+}
+.diagram-editor .diagram-divider::after {
+  content: "";
+  display: block;
+  position: absolute;
+  width: 3px;
+  height: 38px;
+  border-radius: 8px;
+  background: var(--faint);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+.diagram-editor .diagram-divider:hover,
+.diagram-editor .diagram-divider:focus-visible { background: var(--accent); }
+.diagram-editor .diagram-divider:focus-visible { outline: 2px solid var(--accent); }
+.diagram-editor .diagram-output {
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  display: block;
+  overflow: hidden;
+  padding: 0;
+  isolation: isolate;
+  background: var(--bg);
+}
+.diagram-editor .diagram-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  outline-offset: -3px;
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--muted) 23%, transparent) 0.8px, transparent 1px);
+  background-size: 23px 23px;
+}
+.diagram-editor .diagram-viewport.is-panning,
+.diagram-editor .diagram-viewport.is-panning * { cursor: grabbing !important; }
+.diagram-editor .diagram-stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 640px;
+  height: 400px;
+  will-change: transform;
+}
+.diagram-editor .diagram-svg { width: 100%; height: 100%; }
+.diagram-editor .diagram-svg svg {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  overflow: visible;
+}
+.diagram-editor .diagram-canvas-message {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  width: min(340px, calc(100% - 36px));
+  text-align: center;
+  pointer-events: none;
+}
+.diagram-editor .diagram-canvas-message.empty { display: block; }
+.diagram-editor .diagram-canvas-hint {
+  position: absolute;
+  bottom: 71px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0.7;
+}
+.diagram-editor .diagram-canvas-toolbar {
+  position: absolute;
+  z-index: 3;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+  box-shadow: 0 8px 30px #0003;
+  max-width: calc(100% - 20px);
+  overflow-x: auto;
+  scrollbar-width: none;
+  white-space: nowrap;
+}
+.diagram-editor .diagram-canvas-toolbar::-webkit-scrollbar { display: none; }
+.diagram-editor .diagram-canvas-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: 6px;
+  border-radius: 7px;
+  height: 33px;
+  min-width: 33px;
+  padding: 0 8px;
+  color: var(--text);
+}
+.diagram-editor .diagram-canvas-toolbar button:hover:not(:disabled) { background: var(--surface-hover); }
+.diagram-editor .diagram-canvas-toolbar button:focus-visible { outline-offset: -2px; }
+.diagram-editor .diagram-canvas-toolbar button:disabled { color: var(--muted); }
+.diagram-editor .diagram-canvas-toolbar output {
+  min-width: 43px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.diagram-editor .diagram-canvas-toolbar .diagram-toolbar-text { font-size: 11px; }
+.diagram-editor .diagram-toolbar-separator {
+  width: 1px;
+  height: 21px;
+  flex: 0 0 auto;
+  margin: 0 3px;
+  background: var(--line);
+}
+.diagram-editor .diagram-output:fullscreen,
+.diagram-editor .diagram-output.diagram-fullscreen-fallback {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  width: 100vw;
+  height: 100dvh;
+  background: var(--bg);
+}
+@media (max-width: 1000px) {
+  .diagram-editor .diagram-split {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: var(--diagram-source-height, 225px) 8px minmax(230px, 1fr);
+  }
+  .diagram-editor .diagram-source { border: 0; }
+  .diagram-editor .diagram-divider { cursor: row-resize; }
+  .diagram-editor .diagram-divider::after { width: 38px; height: 3px; }
+}
+@media (max-width: 700px) {
+  .diagram-workspace .workspace-body { height: calc(100dvh - 106px); }
+  .diagram-editor .diagram-source { padding: 12px 16px; }
+  .diagram-editor .diagram-canvas-toolbar { bottom: 11px; }
+  .diagram-editor .diagram-canvas-toolbar .diagram-toolbar-text { padding-inline: 6px; }
+  .diagram-editor .diagram-canvas-hint { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .diagram-editor .diagram-divider { transition: none; }
+}
