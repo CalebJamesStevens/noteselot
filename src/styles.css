@@ -2996,7 +2996,6 @@ form {
   top: 0;
   width: 640px;
   height: 400px;
-  will-change: transform;
 }
 .diagram-editor .diagram-svg { width: 100%; height: 100%; }
 .diagram-editor .diagram-svg svg {
