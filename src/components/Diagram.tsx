@@ -372,7 +372,7 @@ export default function Diagram({
             }}
           >
             <div className="diagram-stage" ref={stageRef}>
-              <div className="diagram-svg" dangerouslySetInnerHTML={{ __html: svg }} />
+              <div className="diagram-svg" style={{ visibility: error ? "hidden" : "visible" }} dangerouslySetInnerHTML={{ __html: svg }} />
             </div>
           </div>
           {error ? (
