@@ -38,6 +38,7 @@ test("fit width centers the full width while allowing tall content to overflow",
   assert.ok(view.scale > fitDiagram(content, viewport).scale);
   close(screen(view, content, { x: 0, y: 0 }).x, 48);
   close(screen(view, content, { x: content.width, y: 0 }).x, 852);
+  close(screen(view, content, { x: 0, y: 0 }).y, 48);
 });
 
 test("extreme dimensions use bounded zoom and do not produce infinities", () => {
@@ -47,6 +48,8 @@ test("extreme dimensions use bounded zoom and do not produce infinities", () => 
   const view = fitDiagram({ width: 80000, height: 300000 }, { width: 800, height: 500 });
   assert.equal(view.scale, MIN_DIAGRAM_ZOOM);
   assert.ok(Number.isFinite(view.x) && Number.isFinite(view.y));
+  close(screen(view, { width: 80000, height: 300000 }, { x: 0, y: 0 }).x, 48);
+  close(screen(view, { width: 80000, height: 300000 }, { x: 0, y: 0 }).y, 48);
 });
 
 test("Mermaid rerenders preserve pan, zoom and the existing top-left anchor", () => {
