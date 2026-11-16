@@ -19,10 +19,17 @@ export function fitDiagram(content: Size, viewport: Size, mode: "diagram" | "wid
     Math.max(1, viewport.width - padding * 2) / width,
     mode === "diagram" ? Math.max(1, viewport.height - padding * 2) / height : Infinity,
   ));
+  // When a diagram is too large even at the minimum scale (or when fitting
+  // only its width), begin at the top/left rather than hiding the first node.
+  function axisPan(length: number, available: number) {
+    const scaled = length * scale;
+    const offset = scaled > available - padding * 2 ? padding : (available - scaled) / 2;
+    return (offset - (1 - scale) * length / 2) / scale;
+  }
   return {
     scale,
-    x: (viewport.width - width) / (2 * scale),
-    y: (viewport.height - height) / (2 * scale),
+    x: axisPan(width, viewport.width),
+    y: axisPan(height, viewport.height),
   };
 }
 
